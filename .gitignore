@@ -1,0 +1,6 @@
+node_modules/
+dist/
+.falcon_/
+*.amr
+.DS_Store
+.temp/

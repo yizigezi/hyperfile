@@ -1,0 +1,56 @@
+name: Build HyperFile
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hyperfile-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  app-build:
+    name: Falcon app package
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "16"
+
+      - name: Install aiot-cli
+        run: npm install --global aiot-vue-cli@1.0.32
+
+      - name: Install project dependencies
+        run: npm install --no-package-lock --no-audit --no-fund
+
+      - name: Install zig (pinned)
+        run: python3 -m pip install ziglang==0.17.1
+
+      - name: Build native http plugin (X5 / ARMv7)
+        run: bash tools/build-http-plugin.sh
+
+      - name: Check project
+        run: npm run check
+
+      - name: Build production AMR
+        run: npm run build:prod
+
+      - name: Upload AMR package
+        uses: actions/upload-artifact@v4
+        with:
+          name: hyperfile-amr
+          path: "*.amr"
+          if-no-files-found: error
+          retention-days: 14

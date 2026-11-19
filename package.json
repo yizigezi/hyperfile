@@ -1,0 +1,38 @@
+{
+  "name": "hyperfile",
+  "appid": "8026111800000002",
+  "version": "0.1.0",
+  "description": "HyperFile for 有道词典笔 X5：同 Wi-Fi 网页传文件到 /userdisk/Favorite/HyperFile",
+  "icon": "app_icon.png",
+  "license": "GPL-3.0",
+  "quickjs": {
+    "version": "20200705",
+    "bigNum": false
+  },
+  "simulator": {
+    "path": "",
+    "page": ""
+  },
+  "single-js-bundle": false,
+  "scripts": {
+    "start": "aiot-cli preview",
+    "build": "aiot-cli -p",
+    "build:dev": "aiot-cli",
+    "build:bin": "aiot-cli -q -p",
+    "build:prod": "aiot-cli -c -q -p",
+    "build:bin-nopack": "aiot-cli -q",
+    "build:web": "aiot-cli build-web",
+    "build:simulator": "aiot-cli simulator ./",
+    "check": "aiot-cli check",
+    "check:beta": "aiot-cli check -b"
+  },
+  "keywords": [
+    "iot",
+    "miniapp",
+    "bilibili"
+  ],
+  "devDependencies": {},
+  "dependencies": {
+    "falcon-ui": "^2.0.2"
+  }
+}
