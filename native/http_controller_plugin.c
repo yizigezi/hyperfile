@@ -78,7 +78,7 @@ static int daemon_path(char *out, size_t capacity)
     slash = strrchr(out, '/');
     if (!slash) return -1;
     strcpy(slash + 1, "libhyperfile-httpd.so");
-    return access(out, X_OK) == 0 ? 0 : -1;
+    return 0;
 }
 static int launch_daemon(int port, const char *dir)
 {
@@ -86,6 +86,17 @@ static int launch_daemon(int port, const char *dir)
     pid_t pid;
     int logfd;
     if (daemon_path(executable, sizeof(executable)) != 0) return -1;
+
+    /*
+     * The Falcon resource extractor may drop executable permissions when it
+     * materializes files from the app package. Restore them on first launch.
+     * chmod() only changes the mode; it does not elevate the app's privileges.
+     */
+    if (access(executable, X_OK) != 0) {
+        if (chmod(executable, 0755) != 0 || access(executable, X_OK) != 0)
+            return -1;
+    }
+
     (void)mkdir("/userdisk/hyperfile", 0755);
     snprintf(port_text, sizeof(port_text), "%d", port);
     pid = fork();
