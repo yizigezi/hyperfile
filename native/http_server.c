@@ -495,7 +495,8 @@ int hf_server_stop(void)
     }
     g_stop = 1;
     if (g_listen_fd >= 0) {
-        close(g_listen_fd); /* 让 accept 返回 */
+        shutdown(g_listen_fd, SHUT_RDWR); /* wake a thread blocked in accept */
+        close(g_listen_fd);
         g_listen_fd = -1;
     }
     pthread_mutex_unlock(&g_lock);
