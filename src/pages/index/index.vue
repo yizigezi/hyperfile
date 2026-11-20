@@ -79,6 +79,15 @@ export default {
         this.showToast('状态获取失败')
       }
     },
+    async waitForServer(attempts = 40) {
+      const http = await getHttp()
+      for (let i = 0; i < attempts; i++) {
+        await new Promise((resolve) => this.$page.setTimeout(resolve, 200))
+        const st = await http.status()
+        if (st.running) return st
+      }
+      throw new Error('HTTP 服务启动超时，请检查 /userdisk/hyperfile/httpd.log')
+    },
     async RefreshFiles() {
       try {
         await fs.mkdir(UPLOAD_DIR)
@@ -97,11 +106,16 @@ export default {
           this.qrUrl = ''
           this.showToast('已停止')
         } else {
-          const st = await http.start(PORT, UPLOAD_DIR)
+          let st = await http.start(PORT, UPLOAD_DIR)
+          if (!st.running && st.starting) {
+            this.showToast('正在启动服务…')
+            st = await this.waitForServer()
+          }
           this.running = !!st.running
           this.ip = st.ip || ''
+          this.received = st.received || 0
           this.qrUrl = st.ip ? `http://${st.ip}:${st.port}/` : ''
-          this.showToast('已启动')
+          this.showToast(this.running ? '已启动' : '启动失败')
         }
       } catch (e) {
         this.showToast('操作失败：' + (e && e.message ? e.message : e))
