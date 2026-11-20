@@ -73,7 +73,7 @@ static int daemon_path(char *out, size_t capacity)
     Dl_info info;
     char *slash;
     if (!dladdr((void *)&daemon_path, &info) || !info.dli_fname) return -1;
-    if (strlen(info.dli_fname) + sizeof("/hyperfile-httpd") > capacity) return -1;
+    if (strlen(info.dli_fname) + sizeof("/libhyperfile-httpd.so") > capacity) return -1;
     snprintf(out, capacity, "%s", info.dli_fname);
     slash = strrchr(out, '/');
     if (!slash) return -1;
