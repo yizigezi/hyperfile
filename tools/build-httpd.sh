@@ -30,8 +30,8 @@ echo "== Build QuickJS process controller plugin =="
   -ldl -o "$OUT/libjsapi_hyperfile_http.so"
 
 # Keep both artifacts together: controller resolves the daemon beside its own .so.
-cp "$OUT/hyperfile-httpd" "$LIBS/hyperfile-httpd"
-chmod 755 "$LIBS/hyperfile-httpd"
+cp "$OUT/hyperfile-httpd" "$LIBS/libhyperfile-httpd.so"
+chmod 755 "$LIBS/libhyperfile-httpd.so"
 cp "$OUT/libjsapi_hyperfile_http.so" "$LIBS/libjsapi_hyperfile_http.so"
 
 echo "== ELF checks =="
@@ -39,7 +39,7 @@ readelf -h "$LIBS/hyperfile-httpd" | grep -E 'Class:|Machine:'
 readelf -A "$LIBS/hyperfile-httpd" | grep 'Tag_ABI_VFP_args' || true
 readelf -h "$LIBS/libjsapi_hyperfile_http.so" | grep -E 'Class:|Machine:'
 readelf -A "$LIBS/libjsapi_hyperfile_http.so" | grep 'Tag_ABI_VFP_args' || true
-for f in "$LIBS/hyperfile-httpd" "$LIBS/libjsapi_hyperfile_http.so"; do
+for f in "$LIBS/libhyperfile-httpd.so" "$LIBS/libjsapi_hyperfile_http.so"; do
   max=$(readelf -V "$f" 2>/dev/null | grep -o 'GLIBC_[0-9.]*' | sort -uV | tail -1 || true)
   echo "$f GLIBC max: ${max:-none}"
   if [ -n "$max" ] && [ "$(printf '%s\n%s\n' "$GLIBC" "${max#GLIBC_}" | sort -V | tail -1)" != "$GLIBC" ]; then
