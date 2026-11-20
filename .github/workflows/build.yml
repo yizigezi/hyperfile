@@ -38,8 +38,8 @@ jobs:
       - name: Install zig (pinned)
         run: python3 -m pip install ziglang==0.17.1
 
-      - name: Build native http plugin (X5 / ARMv7)
-        run: bash tools/build-http-plugin.sh
+      - name: Build standalone HTTP daemon and controller (X5 / ARMv7)
+        run: bash tools/build-httpd.sh
 
       - name: Check project
         run: npm run check
