@@ -43,9 +43,15 @@ int main(int argc, char **argv)
     signal(SIGTERM, on_signal);
     signal(SIGPIPE, SIG_IGN);
 
+    if (hf_server_start(port, upload_dir) != 0)
+        return 4;
+
     unlink(CONTROL_SOCKET);
     control_fd = socket(AF_UNIX, SOCK_STREAM, 0);
-    if (control_fd < 0) return 2;
+    if (control_fd < 0) {
+        hf_server_stop();
+        return 2;
+    }
 
     memset(&addr, 0, sizeof(addr));
     addr.sun_family = AF_UNIX;
@@ -54,13 +60,8 @@ int main(int argc, char **argv)
         listen(control_fd, CONTROL_BACKLOG) != 0) {
         close(control_fd);
         unlink(CONTROL_SOCKET);
+        hf_server_stop();
         return 3;
-    }
-
-    if (hf_server_start(port, upload_dir) != 0) {
-        close(control_fd);
-        unlink(CONTROL_SOCKET);
-        return 4;
     }
 
     while (!g_quit) {
