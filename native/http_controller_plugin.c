@@ -8,6 +8,7 @@
 #include "quickjs.h"
 
 #include <dlfcn.h>
+#include <fcntl.h>
 #include <errno.h>
 #include <limits.h>
 #include <stdio.h>
@@ -81,11 +82,12 @@ static int daemon_path(char *out, size_t capacity)
 }
 static int launch_daemon(int port, const char *dir)
 {
-    char executable[PATH_MAX];
+    char executable[PATH_MAX], port_text[16];
     pid_t pid;
     int logfd;
     if (daemon_path(executable, sizeof(executable)) != 0) return -1;
     (void)mkdir("/userdisk/hyperfile", 0755);
+    snprintf(port_text, sizeof(port_text), "%d", port);
     pid = fork();
     if (pid < 0) return -1;
     if (pid == 0) {
@@ -98,7 +100,7 @@ static int launch_daemon(int port, const char *dir)
             dup2(logfd, STDOUT_FILENO); dup2(logfd, STDERR_FILENO); close(logfd);
         }
         close(STDIN_FILENO);
-        execl(executable, executable, (char [16]){0}, (char *)NULL);
+        execl(executable, executable, port_text, dir, (char *)NULL);
         _exit(127);
     }
     (void)waitpid(pid, NULL, 0);
@@ -142,7 +144,7 @@ static JSValue js_stop(JSContext *ctx, JSValueConst this_val, int argc, JSValueC
     (void)this_val; (void)argc; (void)argv;
     if (control_request("STOP", response, sizeof(response)) != 0)
         return resolved(ctx, JS_ParseJSON(ctx, "{\"ok\":true,\"running\":false}", 29, "<stop>"));
-    return resolved(ctx, JS_ParseJSON(ctx, response, strlen(response), "<stop>"));
+    return resolved(ctx, parse_json(ctx, response));
 }
 static int module_init(JSContext *ctx, JSModuleDef *m)
 {
