@@ -31,6 +31,7 @@ echo "== Build QuickJS process controller plugin =="
 
 # Keep both artifacts together: controller resolves the daemon beside its own .so.
 cp "$OUT/hyperfile-httpd" "$LIBS/hyperfile-httpd"
+chmod 755 "$LIBS/hyperfile-httpd"
 cp "$OUT/libjsapi_hyperfile_http.so" "$LIBS/libjsapi_hyperfile_http.so"
 
 echo "== ELF checks =="
