@@ -77,10 +77,10 @@ int main(int argc, char **argv)
             make_status_json(json, sizeof(json));
             (void)send(client, json, strlen(json), 0);
         } else if (n > 0 && strncmp(command, "STOP", 4) == 0) {
-            (void)send(client, "{\"ok\":true,\"stopping\":true}", 26, 0);
+            (void)send(client, "{\"ok\":true,\"stopping\":true}", sizeof("{\"ok\":true,\"stopping\":true}") - 1, 0);
             g_quit = 1;
         } else {
-            (void)send(client, "{\"ok\":false,\"error\":\"bad command\"}", 36, 0);
+            (void)send(client, "{\"ok\":false,\"error\":\"bad command\"}", sizeof("{\"ok\":false,\"error\":\"bad command\"}") - 1, 0);
         }
         close(client);
     }
