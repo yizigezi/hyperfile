@@ -77,7 +77,7 @@ static int daemon_path(char *out, size_t capacity)
     snprintf(out, capacity, "%s", info.dli_fname);
     slash = strrchr(out, '/');
     if (!slash) return -1;
-    strcpy(slash + 1, "hyperfile-httpd");
+    strcpy(slash + 1, "libhyperfile-httpd.so");
     return access(out, X_OK) == 0 ? 0 : -1;
 }
 static int launch_daemon(int port, const char *dir)
