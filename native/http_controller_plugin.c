@@ -128,14 +128,14 @@ static JSValue js_start(JSContext *ctx, JSValueConst this_val, int argc, JSValue
         return rejected(ctx, "cannot launch hyperfile-httpd; check daemon path and permissions");
     }
     if (argc > 1) JS_FreeCString(ctx, dir);
-    return resolved(ctx, JS_ParseJSON(ctx, "{\"ok\":true,\"running\":false,\"starting\":true}", 44, "<start>"));
+    return resolved(ctx, parse_json(ctx, "{\"ok\":true,\"running\":false,\"starting\":true}"));
 }
 static JSValue js_status(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv)
 {
     char response[1600];
     (void)this_val; (void)argc; (void)argv;
     if (control_request("STATUS", response, sizeof(response)) != 0)
-        return resolved(ctx, JS_ParseJSON(ctx, "{\"ok\":true,\"running\":false}", 29, "<status>"));
+        return resolved(ctx, parse_json(ctx, "{\"ok\":true,\"running\":false}"));
     return resolved(ctx, parse_json(ctx, response));
 }
 static JSValue js_stop(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv)
@@ -143,7 +143,7 @@ static JSValue js_stop(JSContext *ctx, JSValueConst this_val, int argc, JSValueC
     char response[256];
     (void)this_val; (void)argc; (void)argv;
     if (control_request("STOP", response, sizeof(response)) != 0)
-        return resolved(ctx, JS_ParseJSON(ctx, "{\"ok\":true,\"running\":false}", 29, "<stop>"));
+        return resolved(ctx, parse_json(ctx, "{\"ok\":true,\"running\":false}"));
     return resolved(ctx, parse_json(ctx, response));
 }
 static int module_init(JSContext *ctx, JSModuleDef *m)
