@@ -35,8 +35,8 @@ chmod 755 "$LIBS/libhyperfile-httpd.so"
 cp "$OUT/libjsapi_hyperfile_http.so" "$LIBS/libjsapi_hyperfile_http.so"
 
 echo "== ELF checks =="
-readelf -h "$LIBS/hyperfile-httpd" | grep -E 'Class:|Machine:'
-readelf -A "$LIBS/hyperfile-httpd" | grep 'Tag_ABI_VFP_args' || true
+readelf -h "$LIBS/libhyperfile-httpd.so" | grep -E 'Class:|Machine:'
+readelf -A "$LIBS/libhyperfile-httpd.so" | grep 'Tag_ABI_VFP_args' || true
 readelf -h "$LIBS/libjsapi_hyperfile_http.so" | grep -E 'Class:|Machine:'
 readelf -A "$LIBS/libjsapi_hyperfile_http.so" | grep 'Tag_ABI_VFP_args' || true
 for f in "$LIBS/libhyperfile-httpd.so" "$LIBS/libjsapi_hyperfile_http.so"; do
