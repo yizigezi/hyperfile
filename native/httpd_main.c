@@ -28,14 +28,12 @@ static void on_signal(int sig) { (void)sig; g_quit = 1; }
 
 static int write_update_token(void)
 {
-    uint32_t value = (uint32_t)time(NULL) ^ (uint32_t)getpid();
+    uint32_t value;
     int random_fd = open("/dev/urandom", O_RDONLY);
-    if (random_fd >= 0) {
-        uint32_t random_value;
-        if (read(random_fd, &random_value, sizeof(random_value)) == (ssize_t)sizeof(random_value))
-            value = random_value;
-        close(random_fd);
-    }
+    if (random_fd < 0) return -1;
+    ssize_t random_bytes = read(random_fd, &value, sizeof(value));
+    close(random_fd);
+    if (random_bytes != (ssize_t)sizeof(value)) return -1;
     char token[16];
     int len = snprintf(token, sizeof(token), "%09u", value % 1000000000U);
     int fd = open(UPDATE_TOKEN_FILE, O_WRONLY | O_CREAT | O_TRUNC, 0600);
