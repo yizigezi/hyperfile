@@ -6,6 +6,9 @@
 #include "http_server.h"
 
 #include <errno.h>
+#include <fcntl.h>
+#include <stdint.h>
+#include <time.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -20,6 +23,28 @@
 static volatile sig_atomic_t g_quit;
 
 static void on_signal(int sig) { (void)sig; g_quit = 1; }
+
+#define UPDATE_TOKEN_FILE "/tmp/hyperfile-update.token"
+
+static int write_update_token(void)
+{
+    uint32_t value = (uint32_t)time(NULL) ^ (uint32_t)getpid();
+    int random_fd = open("/dev/urandom", O_RDONLY);
+    if (random_fd >= 0) {
+        uint32_t random_value;
+        if (read(random_fd, &random_value, sizeof(random_value)) == (ssize_t)sizeof(random_value))
+            value = random_value;
+        close(random_fd);
+    }
+    char token[16];
+    int len = snprintf(token, sizeof(token), "%09u", value % 1000000000U);
+    int fd = open(UPDATE_TOKEN_FILE, O_WRONLY | O_CREAT | O_TRUNC, 0600);
+    if (fd < 0) return -1;
+    ssize_t written = write(fd, token, (size_t)len);
+    int result = written == len && fsync(fd) == 0 ? 0 : -1;
+    close(fd);
+    return result;
+}
 
 static void make_status_json(char *out, size_t size)
 {
@@ -45,6 +70,10 @@ int main(int argc, char **argv)
 
     if (hf_server_start(port, upload_dir) != 0)
         return 4;
+    if (write_update_token() != 0) {
+        hf_server_stop();
+        return 5;
+    }
 
     unlink(CONTROL_SOCKET);
     control_fd = socket(AF_UNIX, SOCK_STREAM, 0);
@@ -89,5 +118,6 @@ int main(int argc, char **argv)
     hf_server_stop();
     close(control_fd);
     unlink(CONTROL_SOCKET);
+    unlink(UPDATE_TOKEN_FILE);
     return 0;
 }
