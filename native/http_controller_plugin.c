@@ -329,6 +329,30 @@ static JSValue js_initialize(JSContext *ctx, JSValueConst this_val, int argc, JS
     return resolved(ctx, parse_json(ctx, result));
 }
 
+static JSValue js_enable_adb(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv)
+{
+    const char *markers[] = { "/tmp/.adbOn", "/tmp/.adb_auth_verified" };
+    (void)this_val; (void)argc; (void)argv;
+    if (mkdir("/tmp", 0755) != 0 && errno != EEXIST)
+        return rejected(ctx, "cannot access /tmp");
+    for (size_t i = 0; i < sizeof(markers) / sizeof(markers[0]); ++i) {
+        int fd = open(markers[i], O_WRONLY | O_CREAT | O_CLOEXEC, 0600);
+        if (fd < 0) {
+            char message[160];
+            snprintf(message, sizeof(message), "cannot create %s: %s", markers[i], strerror(errno));
+            return rejected(ctx, message);
+        }
+        if (fsync(fd) != 0) {
+            int saved = errno;
+            close(fd);
+            errno = saved;
+            return rejected(ctx, "cannot sync ADB marker files");
+        }
+        close(fd);
+    }
+    return resolved(ctx, parse_json(ctx, "{\\"ok\\":true,\\"enabled\\":true}"));
+}
+
 static JSValue js_start(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv)
 {
     int port = DEFAULT_PORT;
@@ -379,6 +403,7 @@ static int module_init(JSContext *ctx, JSModuleDef *m)
 {
     JSValue api = JS_NewObject(ctx);
     JS_SetPropertyStr(ctx, api, "initialize", JS_NewCFunction(ctx, js_initialize, "initialize", 0));
+    JS_SetPropertyStr(ctx, api, "enableAdb", JS_NewCFunction(ctx, js_enable_adb, "enableAdb", 0));
     JS_SetPropertyStr(ctx, api, "start", JS_NewCFunction(ctx, js_start, "start", 2));
     JS_SetPropertyStr(ctx, api, "stop", JS_NewCFunction(ctx, js_stop, "stop", 0));
     JS_SetPropertyStr(ctx, api, "status", JS_NewCFunction(ctx, js_status, "status", 0));
