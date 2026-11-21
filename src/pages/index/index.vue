@@ -10,7 +10,7 @@
               <FlQrcode v-if="running && qrUrl" :text="qrUrl" :size="142" />
               <text class="addr" v-if="running">{{ qrUrl }}</text>
               <text class="addr" v-if="running && updateToken">更新验证码：{{ updateToken }}</text>
-              <text class="addr" v-else>目标目录 {{ uploadDir }}</text>
+              <text class="addr" v-if="!running">目标目录 {{ uploadDir }}</text>
             </div>
             <div class="btn" @click="Toggle">
               <text class="btn-text">{{ running ? '停止服务' : '启动服务' }}</text>
@@ -155,6 +155,7 @@ export default {
         const st = await http.stop()
         this.running = !!st.running
         this.qrUrl = ''
+        this.updateToken = ''
         this.showToast('已停止')
       } catch (e) {
         this.showToast('操作失败：' + (e && e.message ? e.message : e))
@@ -173,6 +174,7 @@ export default {
         this.ip = st.ip || ''
         this.received = st.received || 0
         this.qrUrl = st.ip ? `http://${st.ip}:${st.port}/` : ''
+        this.updateToken = this.running ? await http.updateToken() : ''
         this.showToast(this.running ? 'HTTP 服务已启动' : '启动失败')
       } catch (e) {
         this.showToast('启动失败：' + (e && e.message ? e.message : e))
