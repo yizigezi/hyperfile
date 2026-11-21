@@ -80,7 +80,8 @@ export default {
     return {
       running: false,
       showSetupConfirm: false,
-      showStartConfirm: false,\n      initialized: false,
+      showStartConfirm: false,
+      initialized: false,
       ip: '',
       qrUrl: '',
       received: 0,
