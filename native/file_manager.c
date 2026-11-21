@@ -92,9 +92,9 @@ int hf_fm_list(const char *root, const char *relative, char *json, size_t cap)
     if (hf_fm_resolve_dir(root, relative, dirpath, sizeof(dirpath)) != 0) return -1;
     dir = opendir(dirpath); if (!dir) return -1;
     json[0] = 0;
-    if (append(json, cap, &used, "{\\"ok\\":true,\\"path\\":") != 0 ||
+    if (append(json, cap, &used, "{\"ok\":true,\"path\":") != 0 ||
         json_string(json, cap, &used, relative) != 0 ||
-        append(json, cap, &used, ",\\"entries\\":[") != 0) { closedir(dir); return -1; }
+        append(json, cap, &used, ",\"entries\":[") != 0) { closedir(dir); return -1; }
     while ((ent = readdir(dir)) != NULL) {
         char full[PATH_MAX]; struct stat st; char item[64];
         if (!strcmp(ent->d_name, ".") || !strcmp(ent->d_name, "..")) continue;
@@ -102,9 +102,9 @@ int hf_fm_list(const char *root, const char *relative, char *json, size_t cap)
         if (lstat(full, &st) != 0 || S_ISLNK(st.st_mode)) continue;
         if (!first && append(json, cap, &used, ",") != 0) { closedir(dir); return -1; }
         first = 0;
-        if (append(json, cap, &used, "{\\"name\\":") != 0 ||
+        if (append(json, cap, &used, "{\"name\":") != 0 ||
             json_string(json, cap, &used, ent->d_name) != 0) { closedir(dir); return -1; }
-        snprintf(item, sizeof(item), ",\\"directory\\":%s,\\"size\\":%lld}",
+        snprintf(item, sizeof(item), ",\"directory\":%s,\"size\":%lld}",
                  S_ISDIR(st.st_mode) ? "true" : "false", (long long)st.st_size);
         if (append(json, cap, &used, item) != 0) { closedir(dir); return -1; }
     }
@@ -187,5 +187,11 @@ int hf_fm_copy(const char *root, const char *source, const char *destination)
         resolve_path(root, source, src, sizeof(src), 0) != 0 ||
         resolve_path(root, destination, dst, sizeof(dst), 1) != 0) return -1;
     if (!strcmp(src, dst) || (!strncmp(dst, src, strlen(src)) && dst[strlen(src)] == '/')) { errno = EINVAL; return -1; }
-    if (copy_tree(src, dst) != 0) {\n        int saved = errno;\n        (void)remove_tree(dst);\n        errno = saved;\n        return -1;\n    }\n    return 0;
+    if (copy_tree(src, dst) != 0) {
+        int saved = errno;
+        (void)remove_tree(dst);
+        errno = saved;
+        return -1;
+    }
+    return 0;
 }
