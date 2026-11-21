@@ -114,8 +114,6 @@ export default {
     CancelSetup() {
       this.showSetupConfirm = false
     },
-    CancelStart() {
-    },
     async ConfirmSetup() {
       this.showSetupConfirm = false
       try {
@@ -144,7 +142,7 @@ export default {
       }
     },
     async StartHttpd() {
-      this.showStartConfirm = false
+
       try {
         const http = await getHttp()
         let st = await http.start(PORT, UPLOAD_DIR)
