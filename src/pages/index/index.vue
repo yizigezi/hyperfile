@@ -1,62 +1,44 @@
 <template>
   <div class="page">
     <text class="title">HyperFile</text>
-    <text class="sub">{{ running ? '手机连同一 Wi-Fi，扫码上传' : '未启动' }}</text>
-
-    <div class="card">
-      <FlQrcode v-if="running && qrUrl" :text="qrUrl" :size="150" />
-      <text class="addr" v-if="running">{{ qrUrl }}</text>
-      <text class="addr" v-else>目标目录 {{ uploadDir }}</text>
-    </div>
-
-    <div class="btn" @click="Toggle">
-      <text class="btn-text">{{ running ? '停止' : '启动' }}</text>
-    </div>
-
-    <div class="row">
-      <text class="row-title">已接收 {{ received }}</text>
-      <div class="mini-btn" @click="RefreshFiles">
-        <text class="mini-text">刷新</text>
+    <div class="layout">
+      <div class="left-panel">
+        <text class="sub">{{ running ? '手机连同一 Wi-Fi，扫码上传' : 'HTTP 服务未启动' }}</text>
+        <div class="card">
+          <FlQrcode v-if="running && qrUrl" :text="qrUrl" :size="142" />
+          <text class="addr" v-if="running">{{ qrUrl }}</text>
+          <text class="addr" v-else>目标目录 {{ uploadDir }}</text>
+        </div>
+        <div class="btn" @click="Toggle">
+          <text class="btn-text">{{ running ? '停止服务' : '启动服务' }}</text>
+        </div>
+        <text class="received">已接收 {{ received }} 个文件</text>
+      </div>
+      <div class="right-panel">
+        <div class="row">
+          <text class="row-title">最近文件</text>
+          <div class="mini-btn" @click="RefreshFiles">
+            <text class="mini-text">刷新</text>
+          </div>
+        </div>
+        <scroll class="filelist" scroll-y="true">
+          <div class="file" v-for="f in files" :key="f">
+            <text class="file-name">{{ f }}</text>
+          </div>
+          <div class="bottom-space"></div>
+        </scroll>
       </div>
     </div>
-
-    <scroll class="filelist" scroll-y="true">
-      <div class="file" v-for="f in files" :key="f">
-        <text class="file-name">{{ f }}</text>
-      </div>
-      <div class="bottom-space"></div>
-    </scroll>
-
     <div class="toast" v-if="toast">
       <text class="toast-text">{{ toast }}</text>
     </div>
-
     <div class="setup-page" v-if="showSetupConfirm">
       <text class="setup-title">首次配置 HTTP 服务</text>
-      <text class="setup-desc">HyperFile 需要启动独立的 httpd 服务，才能让其他设备通过浏览器访问并上传文件。</text>
-      <text class="setup-path">服务程序将复制到：/userdisk/HyperFile/hyperfile-httpd</text>
-      <text class="setup-desc">此步骤只负责查找程序、复制文件和设置执行权限，不会启动 HTTP 服务。初始化完成后，你可以在下一步单独启动。</text>
+      <text class="setup-desc">需要先将独立服务程序复制到设备并设置执行权限。此步骤不会启动服务。</text>
+      <text class="setup-path">/userdisk/HyperFile/hyperfile-httpd</text>
       <div class="setup-actions">
-        <div class="setup-cancel" @click="CancelSetup">
-          <text class="setup-cancel-text">暂不配置</text>
-        </div>
-        <div class="setup-confirm" @click="ConfirmSetup">
-          <text class="setup-confirm-text">开始初始化</text>
-        </div>
-      </div>
-    </div>
-
-    <div class="setup-page" v-if="showStartConfirm">
-      <text class="setup-title">httpd 已完成初始化</text>
-      <text class="setup-desc">程序已复制到 /userdisk/HyperFile/hyperfile-httpd，执行权限检查通过。</text>
-      <text class="setup-desc">初始化和启动是两个独立步骤。现在可以启动 HTTP 服务，之后也可以随时停止。</text>
-      <div class="setup-actions">
-        <div class="setup-cancel" @click="CancelStart">
-          <text class="setup-cancel-text">稍后启动</text>
-        </div>
-        <div class="setup-confirm" @click="StartHttpd">
-          <text class="setup-confirm-text">启动服务</text>
-        </div>
+        <div class="setup-cancel" @click="CancelSetup"><text class="setup-cancel-text">暂不配置</text></div>
+        <div class="setup-confirm" @click="ConfirmSetup"><text class="setup-confirm-text">开始初始化</text></div>
       </div>
     </div>
   </div>
@@ -80,7 +62,6 @@ export default {
     return {
       running: false,
       showSetupConfirm: false,
-      showStartConfirm: false,
       initialized: false,
       ip: '',
       qrUrl: '',
@@ -134,7 +115,6 @@ export default {
       this.showSetupConfirm = false
     },
     CancelStart() {
-      this.showStartConfirm = false
     },
     async ConfirmSetup() {
       this.showSetupConfirm = false
@@ -142,15 +122,14 @@ export default {
         const http = await getHttp()
         await http.initialize()
         this.initialized = true
-        this.showStartConfirm = true
-        this.showToast('httpd 初始化完成')
+        this.showToast('初始化完成，再次点击启动即可运行')
       } catch (e) {
         this.showToast('初始化失败：' + (e && e.message ? e.message : e))
       }
     },
     async Toggle() {
       if (!this.running) {
-        if (this.initialized) this.showStartConfirm = true
+        if (this.initialized) this.StartHttpd()
         else this.showSetupConfirm = true
         return
       }
@@ -189,150 +168,80 @@ export default {
 <style lang="less">
 @import '../../styles/hyper.less';
 
-.setup-page {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 0;
-  bottom: 0;
-  z-index: 20;
-  background-color: #1c1c1c;
-  padding: 28px 22px;
-  align-items: center;
-  justify-content: center;
+.page {
+  width: 100%;
+  height: 100%;
+  padding: 14px 18px;
+  flex-direction: column;
 }
-
-.setup-title {
+.title {
   font-size: 23px;
   font-weight: 600;
   color: #ffffff;
-  margin-bottom: 18px;
 }
-
-.setup-desc {
+.layout {
   width: 100%;
-  font-size: 16px;
-  line-height: 25px;
-  color: #cccccc;
-  margin-bottom: 14px;
-}
-
-.setup-path {
-  width: 100%;
-  font-size: 14px;
-  line-height: 22px;
-  color: #ff7da8;
-  margin-bottom: 14px;
-}
-
-.setup-actions {
-  width: 100%;
+  flex: 1;
   flex-direction: row;
-  justify-content: space-between;
-  margin-top: 22px;
-}
-
-.setup-cancel {
-  padding: 12px 18px;
-  border-radius: 20px;
-  background-color: #333333;
-}
-
-.setup-cancel-text {
-  font-size: 16px;
-  color: #cccccc;
-}
-
-.setup-confirm {
-  padding: 12px 20px;
-  border-radius: 20px;
-  background-color: #ff7da8;
-}
-
-.setup-confirm-text {
-  font-size: 16px;
-  font-weight: 600;
-  color: #ffffff;
-}
-
-.sub {
-  font-size: 15px;
-  color: #888888;
-  margin-top: 4px;
-}
-
-.card {
-  margin-top: 18px;
-  width: 92%;
-  background: #242424;
-  border-radius: 14px;
-  padding: 16px;
-  align-items: center;
-}
-
-.addr {
-  margin-top: 10px;
-  font-size: 15px;
-  color: #cccccc;
-}
-
-.btn {
-  margin-top: 16px;
-  padding: 12px 46px;
-  border-radius: 22px;
-  background-color: #ff7da8;
-}
-
-.btn-text {
-  font-size: 18px;
-  font-weight: 600;
-  color: #ffffff;
-}
-
-.row {
-  width: 92%;
-  margin-top: 18px;
-  flex-direction: row;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.row-title {
-  font-size: 15px;
-  color: #888888;
-}
-
-.mini-btn {
-  padding: 6px 16px;
-  border-radius: 14px;
-  background-color: #2c2c2c;
-}
-
-.mini-text {
-  font-size: 14px;
-  color: #cccccc;
-}
-
-.filelist {
-  width: 92%;
   margin-top: 8px;
+}
+.left-panel {
+  width: 42%;
+  padding-right: 14px;
+  align-items: center;
+  justify-content: center;
+  border-right-width: 1px;
+  border-right-color: #333333;
+}
+.right-panel {
+  width: 58%;
+  padding-left: 14px;
   flex-direction: column;
 }
-
-.file {
-  padding: 10px 12px;
-  border-bottom-width: 1px;
-  border-bottom-color: #2c2c2c;
+.sub { font-size: 14px; color: #888888; margin-bottom: 8px; }
+.card {
+  width: 94%;
+  background: #242424;
+  border-radius: 12px;
+  padding: 12px;
+  align-items: center;
 }
-
-.file-name {
-  font-size: 15px;
-  color: #ffffff;
-  text-overflow: ellipsis;
-  max-height: 36px;
+.addr { margin-top: 8px; font-size: 13px; color: #cccccc; text-align: center; }
+.btn {
+  margin-top: 14px;
+  padding: 10px 32px;
+  border-radius: 20px;
+  background-color: #ff7da8;
 }
-
-.bottom-space {
-  height: 20px;
+.btn-text { font-size: 17px; font-weight: 600; color: #ffffff; }
+.received { margin-top: 12px; font-size: 13px; color: #888888; }
+.row {
+  width: 100%;
+  margin-bottom: 8px;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
 }
+.row-title { font-size: 15px; color: #cccccc; }
+.mini-btn { padding: 6px 14px; border-radius: 14px; background-color: #2c2c2c; }
+.mini-text { font-size: 13px; color: #cccccc; }
+.filelist { width: 100%; flex: 1; flex-direction: column; }
+.file { padding: 9px 10px; border-bottom-width: 1px; border-bottom-color: #2c2c2c; }
+.file-name { font-size: 14px; color: #ffffff; text-overflow: ellipsis; max-height: 34px; }
+.bottom-space { height: 12px; }
+.toast { position: absolute; left: 20%; right: 20%; bottom: 12px; padding: 9px; background-color: #333333; border-radius: 8px; align-items: center; }
+.toast-text { color: #ffffff; font-size: 13px; }
+.setup-page {
+  position: absolute; left: 0; right: 0; top: 0; bottom: 0; z-index: 20;
+  background-color: #1c1c1c; padding: 20px 26px;
+  align-items: center; justify-content: center;
+}
+.setup-title { font-size: 22px; font-weight: 600; color: #ffffff; margin-bottom: 12px; }
+.setup-desc { width: 100%; font-size: 15px; line-height: 23px; color: #cccccc; margin-bottom: 10px; }
+.setup-path { width: 100%; font-size: 13px; color: #ff7da8; margin-bottom: 8px; }
+.setup-actions { width: 100%; flex-direction: row; justify-content: flex-end; margin-top: 12px; }
+.setup-cancel { padding: 10px 16px; border-radius: 18px; background-color: #333333; margin-right: 10px; }
+.setup-cancel-text { font-size: 15px; color: #cccccc; }
+.setup-confirm { padding: 10px 18px; border-radius: 18px; background-color: #ff7da8; }
+.setup-confirm-text { font-size: 15px; font-weight: 600; color: #ffffff; }
 </style>
