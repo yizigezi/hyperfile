@@ -36,6 +36,8 @@
 #include <time.h>
 #include <unistd.h>
 #include <strings.h>
+#include <sys/wait.h>
+
 
 /* ---------------- 内置上传网页（单文件，无外部依赖） ---------------- */
 
@@ -75,6 +77,7 @@ static const char WEB_UPLOAD_HTML[] =
 "var meta=document.createElement('div');meta.className='meta';meta.textContent=e.directory?'文件夹':formatSize(e.size);row.appendChild(meta);"
 "var actions=document.createElement('div');actions.className='actions';"
 "var cp=document.createElement('button');cp.textContent='复制';cp.onclick=function(){clipboard=rel;say('已复制：'+rel)};actions.appendChild(cp);"
+"if(!e.directory && /\\.amr$/i.test(e.name)){var ins=document.createElement('button');ins.className='primary';ins.textContent='安装';ins.onclick=function(){if(!confirm('确认安装 '+e.name+'？'))return;api('/api/install?path='+enc(rel),'POST').then(function(){say('安装命令已启动，日志：/userdisk/HyperFile/install.log')}).catch(function(x){say('启动安装失败：'+x.message)})};actions.appendChild(ins)}"
 "var del=document.createElement('button');del.className='danger';del.textContent='删除';del.onclick=function(){if(!confirm('确定删除 '+e.name+'？'))return;api('/api/file?path='+enc(rel),'DELETE').then(function(){say('已删除');load()}).catch(function(x){say('删除失败：'+x.message)})};actions.appendChild(del);"
 "row.appendChild(actions);list.appendChild(row)});}).catch(function(e){say('读取失败：'+e.message)})}"
 "function formatSize(n){if(n<1024)return n+' B';if(n<1048576)return (n/1024).toFixed(1)+' KB';return (n/1048576).toFixed(1)+' MB'}"
@@ -295,6 +298,46 @@ static int hf_get_query(const char* path, const char* name, char* out, size_t ou
     return 0;
 }
 
+/* Launch miniapp_cli without a shell; the HTTP request never waits for installation. */
+static int hf_launch_amr_install(const char *filepath)
+{
+    int pipefd[2];
+    pid_t first;
+    if (pipe(pipefd) != 0) return -1;
+    (void)fcntl(pipefd[1], F_SETFD, FD_CLOEXEC);
+    first = fork();
+    if (first < 0) { close(pipefd[0]); close(pipefd[1]); return -1; }
+    if (first == 0) {
+        pid_t second;
+        close(pipefd[0]);
+        if (setsid() < 0) _exit(126);
+        second = fork();
+        if (second < 0) _exit(126);
+        if (second > 0) _exit(0);
+        int logfd = open("/userdisk/HyperFile/install.log", O_WRONLY | O_CREAT | O_APPEND, 0644);
+        if (logfd >= 0) {
+            (void)dup2(logfd, STDOUT_FILENO);
+            (void)dup2(logfd, STDERR_FILENO);
+            if (logfd > STDERR_FILENO) close(logfd);
+        }
+        char *const argv[] = { (char *)"miniapp_cli", (char *)"install", (char *)filepath, NULL };
+        execvp("miniapp_cli", argv);
+        int saved = errno;
+        (void)write(pipefd[1], &saved, sizeof(saved));
+        _exit(127);
+    }
+    close(pipefd[1]);
+    int status = 0;
+    while (waitpid(first, &status, 0) < 0 && errno == EINTR) {}
+    int child_errno = 0;
+    ssize_t n;
+    do { n = read(pipefd[0], &child_errno, sizeof(child_errno)); } while (n < 0 && errno == EINTR);
+    close(pipefd[0]);
+    if (n > 0) { errno = child_errno; return -1; }
+    if (n < 0) return -1;
+    return 0; /* CLOEXEC closed the pipe: exec succeeded. */
+}
+
 /* ---------------- 连接处理 ---------------- */
 
 static void hf_handle_upload(int fd, const char* path, const char* headers,
@@ -431,6 +474,21 @@ static void hf_handle_conn(int fd)
             hf_respond_json(fd, 200, "{\"ok\":true}");
         else
             hf_respond_json(fd, 400, "{\"ok\":false,\"error\":\"cannot copy item (destination may exist)\"}");
+    } else if (strcmp(method, "POST") == 0 && strncmp(path, "/api/install", 12) == 0) {
+        char rel[512] = "", decoded[512], filepath[PATH_MAX];
+        hf_get_query(path, "path", rel, sizeof(rel));
+        hf_url_decode(decoded, sizeof(decoded), rel);
+        size_t n = strlen(decoded);
+        if (n < 4 || strcasecmp(decoded + n - 4, ".amr") != 0 ||
+            hf_fm_resolve_file(g_status.dir, decoded, filepath, sizeof(filepath)) != 0) {
+            hf_respond_json(fd, 400, "{\\"ok\\":false,\\"error\\":\\"only regular .amr packages can be installed\\"}");
+        } else if (hf_launch_amr_install(filepath) != 0) {
+            char msg[256];
+            snprintf(msg, sizeof(msg), "{\\"ok\\":false,\\"error\\":\\"cannot execute miniapp_cli (errno %d)\\"}", errno);
+            hf_respond_json(fd, 500, msg);
+        } else {
+            hf_respond_json(fd, 200, "{\\"ok\\":true,\\"started\\":true}");
+        }
     } else if (strcmp(method, "GET") == 0 && strncmp(path, "/status", 7) == 0) {
         char json[1280];
         pthread_mutex_lock(&g_lock);
