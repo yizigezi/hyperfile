@@ -30,6 +30,21 @@
     <div class="toast" v-if="toast">
       <text class="toast-text">{{ toast }}</text>
     </div>
+
+    <div class="setup-page" v-if="showSetupConfirm">
+      <text class="setup-title">首次配置 HTTP 服务</text>
+      <text class="setup-desc">HyperFile 需要启动独立的 httpd 服务，才能让其他设备通过浏览器访问并上传文件。</text>
+      <text class="setup-path">服务程序将复制到：/userdisk/HyperFile/hyperfile-httpd</text>
+      <text class="setup-desc">确认后，应用会检查 A/B 槽中的 httpd 文件，复制到上述目录并设置执行权限，然后启动服务。</text>
+      <div class="setup-actions">
+        <div class="setup-cancel" @click="CancelSetup">
+          <text class="setup-cancel-text">暂不配置</text>
+        </div>
+        <div class="setup-confirm" @click="ConfirmSetup">
+          <text class="setup-confirm-text">确认并启动</text>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -50,6 +65,7 @@ export default {
   data() {
     return {
       running: false,
+      showSetupConfirm: false,
       ip: '',
       qrUrl: '',
       received: 0,
@@ -97,28 +113,43 @@ export default {
         this.files = []
       }
     },
+    CancelSetup() {
+      this.showSetupConfirm = false
+    },
+    async ConfirmSetup() {
+      this.showSetupConfirm = false
+      await this.StartHttpd()
+    },
     async Toggle() {
+      if (!this.running) {
+        this.showSetupConfirm = true
+        return
+      }
       try {
         const http = await getHttp()
-        if (this.running) {
-          const st = await http.stop()
-          this.running = !!st.running
-          this.qrUrl = ''
-          this.showToast('已停止')
-        } else {
-          let st = await http.start(PORT, UPLOAD_DIR)
-          if (!st.running && st.starting) {
-            this.showToast('正在启动服务…')
-            st = await this.waitForServer()
-          }
-          this.running = !!st.running
-          this.ip = st.ip || ''
-          this.received = st.received || 0
-          this.qrUrl = st.ip ? `http://${st.ip}:${st.port}/` : ''
-          this.showToast(this.running ? '已启动' : '启动失败')
-        }
+        const st = await http.stop()
+        this.running = !!st.running
+        this.qrUrl = ''
+        this.showToast('已停止')
       } catch (e) {
         this.showToast('操作失败：' + (e && e.message ? e.message : e))
+      }
+    },
+    async StartHttpd() {
+      try {
+        const http = await getHttp()
+        let st = await http.start(PORT, UPLOAD_DIR)
+        if (!st.running && st.starting) {
+          this.showToast('正在配置并启动 httpd…')
+          st = await this.waitForServer()
+        }
+        this.running = !!st.running
+        this.ip = st.ip || ''
+        this.received = st.received || 0
+        this.qrUrl = st.ip ? `http://${st.ip}:${st.port}/` : ''
+        this.showToast(this.running ? 'HTTP 服务已启动' : '启动失败')
+      } catch (e) {
+        this.showToast('配置/启动失败：' + (e && e.message ? e.message : e))
       }
     }
   }
@@ -127,6 +158,72 @@ export default {
 
 <style lang="less">
 @import '../../styles/hyper.less';
+
+.setup-page {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  z-index: 20;
+  background-color: #1c1c1c;
+  padding: 28px 22px;
+  align-items: center;
+  justify-content: center;
+}
+
+.setup-title {
+  font-size: 23px;
+  font-weight: 600;
+  color: #ffffff;
+  margin-bottom: 18px;
+}
+
+.setup-desc {
+  width: 100%;
+  font-size: 16px;
+  line-height: 25px;
+  color: #cccccc;
+  margin-bottom: 14px;
+}
+
+.setup-path {
+  width: 100%;
+  font-size: 14px;
+  line-height: 22px;
+  color: #ff7da8;
+  margin-bottom: 14px;
+}
+
+.setup-actions {
+  width: 100%;
+  flex-direction: row;
+  justify-content: space-between;
+  margin-top: 22px;
+}
+
+.setup-cancel {
+  padding: 12px 18px;
+  border-radius: 20px;
+  background-color: #333333;
+}
+
+.setup-cancel-text {
+  font-size: 16px;
+  color: #cccccc;
+}
+
+.setup-confirm {
+  padding: 12px 20px;
+  border-radius: 20px;
+  background-color: #ff7da8;
+}
+
+.setup-confirm-text {
+  font-size: 16px;
+  font-weight: 600;
+  color: #ffffff;
+}
 
 .sub {
   font-size: 15px;
