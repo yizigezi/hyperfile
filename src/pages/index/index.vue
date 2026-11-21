@@ -165,6 +165,8 @@ export default {
           { label: '可执行', value: yesNo(d.executable) },
           { label: '权限', value: d.mode ? '0' + Number(d.mode).toString(8) : '未知' },
           { label: '文件大小', value: String(d.size || 0) + ' bytes' },
+          { label: 'ELF 32 位', value: yesNo(d.elf32) },
+          { label: 'ARM 架构', value: yesNo(d.arm) + ' (e_machine=' + String(d.elfMachine || 0) + ')' },
           { label: '检查错误', value: String(d.errno || 0) + ' / ' + (d.error || '') },
           { label: '挂载点', value: d.mountPoint || '未知' },
           { label: '挂载参数', value: d.mountOptions || '未知' },
