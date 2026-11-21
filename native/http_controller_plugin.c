@@ -91,7 +91,7 @@ static int daemon_path(char *out, size_t capacity)
         size_t parent_len = (size_t)(slash - info.dli_fname);
         if (parent_len + sizeof("/libhyperfile-httpd.so") <= sizeof(candidate)) {
             memcpy(candidate, info.dli_fname, parent_len);
-            candidate[parent_len] = '\\0';
+            candidate[parent_len] = '\0';
             strncat(candidate, "/libhyperfile-httpd.so",
                     sizeof(candidate) - strlen(candidate) - 1);
             if (regular_executable_candidate(candidate)) {
@@ -263,7 +263,7 @@ static JSValue js_initialize(JSContext *ctx, JSValueConst this_val, int argc, JS
         snprintf(message, sizeof(message), "httpd initialization failed (errno=%d)", errno);
         return rejected(ctx, message);
     }
-    snprintf(result, sizeof(result), "{\\"ok\\":true,\\"initialized\\":true,\\"path\\":\\"%s/hyperfile-httpd\\"}", SERVICE_DIR);
+    snprintf(result, sizeof(result), "{\"ok\":true,\"initialized\":true,\"path\":\"%s/hyperfile-httpd\"}", SERVICE_DIR);
     return resolved(ctx, parse_json(ctx, result));
 }
 static JSValue js_start(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv)
@@ -298,7 +298,7 @@ static JSValue js_status(JSContext *ctx, JSValueConst this_val, int argc, JSValu
     initialized = initialized_daemon_path(executable, sizeof(executable)) == 0;
     if (control_request("STATUS", response, sizeof(response)) != 0) {
         snprintf(fallback, sizeof(fallback),
-                 "{\\"ok\\":true,\\"running\\":false,\\"initialized\\":%s}",
+                 "{\"ok\":true,\"running\":false,\"initialized\":%s}",
                  initialized ? "true" : "false");
         return resolved(ctx, parse_json(ctx, fallback));
     }
