@@ -8,6 +8,7 @@
 #include "quickjs.h"
 
 #include <dlfcn.h>
+#include <dirent.h>
 #include <fcntl.h>
 #include <errno.h>
 #include <limits.h>
@@ -68,18 +69,63 @@ static int control_request(const char *command, char *response, size_t capacity)
     response[n] = '\0';
     return 0;
 }
+static int regular_executable_candidate(const char *path)
+{
+    struct stat st;
+    return stat(path, &st) == 0 && S_ISREG(st.st_mode) && access(path, R_OK) == 0;
+}
+
+/*
+ * Prefer the daemon next to this JSAPI module. If the loader does not expose
+ * a usable module path, scan every installed app package and both A/B slots.
+ */
 static int daemon_path(char *out, size_t capacity)
 {
     Dl_info info;
-    char *slash;
-    if (!dladdr((void *)&daemon_path, &info) || !info.dli_fname) return -1;
-    if (strlen(info.dli_fname) + sizeof("/libhyperfile-httpd.so") > capacity) return -1;
-    snprintf(out, capacity, "%s", info.dli_fname);
-    slash = strrchr(out, '/');
-    if (!slash) return -1;
-    strcpy(slash + 1, "libhyperfile-httpd.so");
-    return 0;
+    char candidate[PATH_MAX];
+    const char *pkg_root = "/userdisk/miniapp/data/mini_app/pkg";
+
+    if (dladdr((void *)&daemon_path, &info) && info.dli_fname &&
+        strrchr(info.dli_fname, '/') != NULL) {
+        const char *slash = strrchr(info.dli_fname, '/');
+        size_t parent_len = (size_t)(slash - info.dli_fname);
+        if (parent_len + sizeof("/libhyperfile-httpd.so") <= sizeof(candidate)) {
+            memcpy(candidate, info.dli_fname, parent_len);
+            candidate[parent_len] = '\\0';
+            strncat(candidate, "/libhyperfile-httpd.so",
+                    sizeof(candidate) - strlen(candidate) - 1);
+            if (regular_executable_candidate(candidate)) {
+                if (strlen(candidate) + 1 > capacity) { errno = ENAMETOOLONG; return -1; }
+                strcpy(out, candidate);
+                return 0;
+            }
+        }
+    }
+
+    DIR *apps = opendir(pkg_root);
+    if (!apps) return -1;
+    struct dirent *app;
+    while ((app = readdir(apps)) != NULL) {
+        if (app->d_name[0] == '.') continue;
+        const char *slots[] = { "a", "b" };
+        for (size_t i = 0; i < sizeof(slots) / sizeof(slots[0]); ++i) {
+            if (snprintf(candidate, sizeof(candidate), "%s/%s/%s/libs/libhyperfile-httpd.so",
+                         pkg_root, app->d_name, slots[i]) >= (int)sizeof(candidate))
+                continue;
+            if (!regular_executable_candidate(candidate)) continue;
+            if (strlen(candidate) + 1 > capacity) {
+                closedir(apps); errno = ENAMETOOLONG; return -1;
+            }
+            strcpy(out, candidate);
+            closedir(apps);
+            return 0;
+        }
+    }
+    closedir(apps);
+    errno = ENOENT;
+    return -1;
 }
+
 static int copy_daemon(const char *source, const char *destination)
 {
     int in_fd = -1, out_fd = -1;
