@@ -292,10 +292,16 @@ static JSValue js_start(JSContext *ctx, JSValueConst this_val, int argc, JSValue
 }
 static JSValue js_status(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv)
 {
-    char response[1600];
+    char response[1600], executable[PATH_MAX], fallback[128];
+    int initialized;
     (void)this_val; (void)argc; (void)argv;
-    if (control_request("STATUS", response, sizeof(response)) != 0)
-        return resolved(ctx, parse_json(ctx, "{\"ok\":true,\"running\":false}"));
+    initialized = initialized_daemon_path(executable, sizeof(executable)) == 0;
+    if (control_request("STATUS", response, sizeof(response)) != 0) {
+        snprintf(fallback, sizeof(fallback),
+                 "{\\"ok\\":true,\\"running\\":false,\\"initialized\\":%s}",
+                 initialized ? "true" : "false");
+        return resolved(ctx, parse_json(ctx, fallback));
+    }
     return resolved(ctx, parse_json(ctx, response));
 }
 static JSValue js_stop(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv)
