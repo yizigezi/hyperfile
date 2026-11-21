@@ -195,3 +195,12 @@ int hf_fm_copy(const char *root, const char *source, const char *destination)
     }
     return 0;
 }
+
+int hf_fm_resolve_file(const char *root, const char *relative, char *out, size_t cap)
+{
+    struct stat st;
+    if (resolve_path(root, relative, out, cap, 0) != 0) return -1;
+    if (lstat(out, &st) != 0) return -1;
+    if (!S_ISREG(st.st_mode) || S_ISLNK(st.st_mode)) { errno = EINVAL; return -1; }
+    return 0;
+}
