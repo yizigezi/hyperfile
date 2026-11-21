@@ -236,13 +236,34 @@ fail:
 static int initialized_daemon_path(char *executable, size_t capacity)
 {
     struct stat st;
-    if (snprintf(executable, capacity, "%s/hyperfile-httpd", SERVICE_DIR) >= (int)capacity) {
+    int length;
+
+    if (!executable || capacity == 0) {
+        errno = EINVAL;
+        return -1;
+    }
+
+    length = snprintf(executable, capacity, "%s/hyperfile-httpd", SERVICE_DIR);
+    if (length < 0) {
+        /* snprintf does not provide a portable errno contract on failure. */
+        errno = EIO;
+        return -1;
+    }
+    if ((size_t)length >= capacity) {
         errno = ENAMETOOLONG;
         return -1;
     }
-    if (stat(executable, &st) != 0) return -1;
-    if (!S_ISREG(st.st_mode)) { errno = EINVAL; return -1; }
-    if (access(executable, X_OK) != 0) return -1;
+
+    /* Keep the errno from the failing syscall; never rewrite it as ENOENT. */
+    if (stat(executable, &st) != 0)
+        return -1;
+    if (!S_ISREG(st.st_mode)) {
+        errno = EINVAL;
+        return -1;
+    }
+    if (access(executable, X_OK) != 0)
+        return -1;
+
     return 0;
 }
 
@@ -380,41 +401,59 @@ static int launch_daemon(int port, const char *dir)
     char executable[PATH_MAX], port_text[16];
     pid_t pid;
     int pipefd[2], status = 0, child_error = 0;
+    int wait_error = 0, polled;
     struct pollfd pfd;
     ssize_t n;
 
-    if (initialized_daemon_path(executable, sizeof(executable)) != 0) return -1;
-    if (pipe(pipefd) != 0) return -1;
+    if (initialized_daemon_path(executable, sizeof(executable)) != 0)
+        return -1;
+    if (pipe(pipefd) != 0)
+        return -1;
     if (fcntl(pipefd[1], F_SETFD, FD_CLOEXEC) != 0) {
-        int saved = errno; close(pipefd[0]); close(pipefd[1]); errno = saved; return -1;
+        int saved = errno;
+        close(pipefd[0]);
+        close(pipefd[1]);
+        errno = saved;
+        return -1;
     }
 
     snprintf(port_text, sizeof(port_text), "%d", port);
     pid = fork();
     if (pid < 0) {
-        int saved = errno; close(pipefd[0]); close(pipefd[1]); errno = saved; return -1;
+        int saved = errno;
+        close(pipefd[0]);
+        close(pipefd[1]);
+        errno = saved;
+        return -1;
     }
     if (pid == 0) {
         close(pipefd[0]);
         if (setsid() != 0) {
-            child_error = errno; (void)write(pipefd[1], &child_error, sizeof(child_error)); _exit(126);
+            child_error = errno;
+            (void)write(pipefd[1], &child_error, sizeof(child_error));
+            _exit(126);
         }
         pid_t second = fork();
         if (second < 0) {
-            child_error = errno; (void)write(pipefd[1], &child_error, sizeof(child_error)); _exit(126);
+            child_error = errno;
+            (void)write(pipefd[1], &child_error, sizeof(child_error));
+            _exit(126);
         }
-        if (second > 0) _exit(0);
+        if (second > 0)
+            _exit(0);
 
         int logfd = open(LOG_FILE, O_WRONLY | O_CREAT | O_APPEND, 0644);
         if (logfd >= 0) {
             (void)dup2(logfd, STDOUT_FILENO);
             (void)dup2(logfd, STDERR_FILENO);
-            if (logfd > STDERR_FILENO) close(logfd);
+            if (logfd > STDERR_FILENO)
+                close(logfd);
         } else {
             dprintf(STDERR_FILENO, "[launcher] cannot open %s: errno=%d (%s)\\n",
                     LOG_FILE, errno, strerror(errno));
         }
-        dprintf(STDERR_FILENO, "[launcher] exec %s port=%s dir=%s\\n", executable, port_text, dir);
+        dprintf(STDERR_FILENO, "[launcher] exec %s port=%s dir=%s\\n",
+                executable, port_text, dir);
         close(STDIN_FILENO);
         execl(executable, executable, port_text, dir, (char *)NULL);
         child_error = errno;
@@ -425,21 +464,53 @@ static int launch_daemon(int port, const char *dir)
     }
 
     close(pipefd[1]);
-    while (waitpid(pid, &status, 0) < 0 && errno == EINTR) {}
-    pfd.fd = pipefd[0]; pfd.events = POLLIN | POLLHUP; pfd.revents = 0;
-    int polled;
-    do { polled = poll(&pfd, 1, 500); } while (polled < 0 && errno == EINTR);
-    if (polled > 0 && (pfd.revents & POLLIN)) {
-        do { n = read(pipefd[0], &child_error, sizeof(child_error)); } while (n < 0 && errno == EINTR);
-        close(pipefd[0]);
-        if (n == (ssize_t)sizeof(child_error)) { errno = child_error; return -1; }
-        if (n < 0) return -1;
-    } else {
-        close(pipefd[0]);
-        if (polled == 0) { errno = ETIMEDOUT; return -1; }
-        if (polled < 0) return -1;
+    for (;;) {
+        pid_t waited = waitpid(pid, &status, 0);
+        if (waited == pid)
+            break;
+        if (waited < 0 && errno == EINTR)
+            continue;
+        wait_error = errno;
+        break;
     }
-    if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) { errno = ECHILD; return -1; }
+
+    pfd.fd = pipefd[0];
+    pfd.events = POLLIN | POLLHUP;
+    pfd.revents = 0;
+    do {
+        polled = poll(&pfd, 1, 500);
+    } while (polled < 0 && errno == EINTR);
+
+    if (polled > 0 && (pfd.revents & POLLIN)) {
+        do {
+            n = read(pipefd[0], &child_error, sizeof(child_error));
+        } while (n < 0 && errno == EINTR);
+        if (n < 0) {
+            int saved = errno;
+            close(pipefd[0]);
+            errno = saved;
+            return -1;
+        }
+        close(pipefd[0]);
+        if (n == (ssize_t)sizeof(child_error)) {
+            errno = child_error;
+            return -1;
+        }
+    } else {
+        int saved = polled < 0 ? errno : (polled == 0 ? ETIMEDOUT : EIO);
+        close(pipefd[0]);
+        errno = saved;
+        return -1;
+    }
+
+    if (wait_error) {
+        errno = wait_error;
+        return -1;
+    }
+    if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
+        errno = ECHILD;
+        return -1;
+    }
     return 0; /* EOF means exec() closed the CLOEXEC pipe successfully. */
 }
 static JSValue js_initialize(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv)
