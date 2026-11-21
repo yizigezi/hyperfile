@@ -74,16 +74,16 @@ static int append(char *out, size_t cap, size_t *used, const char *s)
 
 static int json_string(char *out, size_t cap, size_t *used, const char *s)
 {
-    if (append(out, cap, used, "\\"") != 0) return -1;
+    if (append(out, cap, used, "\"") != 0) return -1;
     for (; *s; ++s) {
         char tmp[7];
         unsigned char c = (unsigned char)*s;
-        if (c == '"' || c == '\\\\') { tmp[0] = '\\\\'; tmp[1] = (char)c; tmp[2] = 0; }
-        else if (c < 0x20) { snprintf(tmp, sizeof(tmp), "\\\\u%04x", c); }
+        if (c == '"' || c == '\\') { tmp[0] = '\\'; tmp[1] = (char)c; tmp[2] = 0; }
+        else if (c < 0x20) { snprintf(tmp, sizeof(tmp), "\\u%04x", c); }
         else { tmp[0] = (char)c; tmp[1] = 0; }
         if (append(out, cap, used, tmp) != 0) return -1;
     }
-    return append(out, cap, used, "\\"");
+    return append(out, cap, used, "\"");
 }
 
 int hf_fm_list(const char *root, const char *relative, char *json, size_t cap)
@@ -186,6 +186,6 @@ int hf_fm_copy(const char *root, const char *source, const char *destination)
     if (!source || !*source || !destination || !*destination ||
         resolve_path(root, source, src, sizeof(src), 0) != 0 ||
         resolve_path(root, destination, dst, sizeof(dst), 1) != 0) return -1;
-    if (!strcmp(src, dst) || !strncmp(dst, src, strlen(src)) && dst[strlen(src)] == '/') { errno = EINVAL; return -1; }
-    return copy_tree(src, dst);
+    if (!strcmp(src, dst) || (!strncmp(dst, src, strlen(src)) && dst[strlen(src)] == '/')) { errno = EINVAL; return -1; }
+    if (copy_tree(src, dst) != 0) {\n        int saved = errno;\n        (void)remove_tree(dst);\n        errno = saved;\n        return -1;\n    }\n    return 0;
 }
