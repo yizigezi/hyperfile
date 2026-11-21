@@ -89,10 +89,9 @@ static void set_error(int error)
  * not trusted here: Falcon may return a loader alias rather than a filesystem
  * path. Return a concrete source path or preserve the last useful error.
  */
-static int daemon_path(char *out, size_t capacity)
+static int daemon_path(const char *prefix, char *out, size_t capacity)
 {
     const char *pkg_root = "/userdisk/miniapp/data/mini_app/pkg";
-    const char *prefix = "libhyperfile-httpd";
     DIR *apps = opendir(pkg_root);
     struct dirent *app;
     int last_error = ENOENT;
@@ -255,7 +254,7 @@ static int initialize_daemon(char *stage, size_t stage_capacity, char *source_ou
     if (mkdir(SERVICE_DIR, 0755) != 0 && errno != EEXIST) return -1;
 
     if (stage && stage_capacity) snprintf(stage, stage_capacity, "search-a-b-slots");
-    if (daemon_path(source, sizeof(source)) != 0) return -1;
+    if (daemon_path("libhyperfile-httpd", source, sizeof(source)) != 0) return -1;
     if (source_out && source_capacity) snprintf(source_out, source_capacity, "%s", source);
 
     if (stage && stage_capacity) snprintf(stage, stage_capacity, "build-destination-path");
@@ -274,6 +273,12 @@ static int initialize_daemon(char *stage, size_t stage_capacity, char *source_ou
         return -1;
     }
     if (access(executable, X_OK) != 0) return -1;
+
+    if (stage && stage_capacity) snprintf(stage, stage_capacity, "search-updater");
+    if (daemon_path("libhyperfile-updater", source, sizeof(source)) != 0) return -1;
+    if (stage && stage_capacity) snprintf(stage, stage_capacity, "copy-updater");
+    if (copy_daemon(source, SERVICE_DIR "/hyperfile-updater") != 0) return -1;
+    if (access(SERVICE_DIR "/hyperfile-updater", X_OK) != 0) return -1;
 
     if (stage && stage_capacity) snprintf(stage, stage_capacity, "complete");
     return 0;
