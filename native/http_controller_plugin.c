@@ -92,10 +92,9 @@ static void set_error(int error)
 static int daemon_path(char *out, size_t capacity)
 {
     const char *pkg_root = "/userdisk/miniapp/data/mini_app/pkg";
+    const char *prefix = "libhyperfile-httpd";
     DIR *apps = opendir(pkg_root);
     struct dirent *app;
-    int saw_slot = 0;
-    int saw_candidate = 0;
     int last_error = ENOENT;
 
     if (!apps) return -1;
@@ -105,40 +104,61 @@ static int daemon_path(char *out, size_t capacity)
         if (app->d_name[0] == '.') continue;
 
         for (size_t i = 0; i < sizeof(slots) / sizeof(slots[0]); ++i) {
-            char candidate[PATH_MAX];
-            struct stat st;
-            int length = snprintf(candidate, sizeof(candidate),
-                "%s/%s/%s/libs/libhyperfile-httpd.so",
-                pkg_root, app->d_name, slots[i]);
+            char libs_dir[PATH_MAX];
+            DIR *libs;
+            struct dirent *entry;
 
-            if (length < 0 || length >= (int)sizeof(candidate)) continue;
-            if (stat(candidate, &st) == 0) {
-                saw_slot = 1;
-                if (!S_ISREG(st.st_mode)) {
-                    last_error = EINVAL;
+            if (snprintf(libs_dir, sizeof(libs_dir), "%s/%s/%s/libs",
+                         pkg_root, app->d_name, slots[i]) >= (int)sizeof(libs_dir))
+                continue;
+
+            libs = opendir(libs_dir);
+            if (!libs) {
+                if (errno != ENOENT && errno != ENOTDIR) last_error = errno;
+                continue;
+            }
+
+            while ((entry = readdir(libs)) != NULL) {
+                char candidate[PATH_MAX];
+                struct stat st;
+                size_t prefix_len = strlen(prefix);
+                int length;
+
+                /* The installer appends a generated suffix to the library name. */
+                if (strncmp(entry->d_name, prefix, prefix_len) != 0) continue;
+                if (entry->d_name[prefix_len] == '\\0') continue;
+
+                length = snprintf(candidate, sizeof(candidate), "%s/%s",
+                                  libs_dir, entry->d_name);
+                if (length < 0 || length >= (int)sizeof(candidate)) continue;
+
+                if (stat(candidate, &st) != 0) {
+                    last_error = errno;
                     continue;
                 }
-                saw_candidate = 1;
+                if (!S_ISREG(st.st_mode)) continue;
                 if (access(candidate, R_OK) != 0) {
                     last_error = errno;
                     continue;
                 }
                 if ((size_t)length + 1 > capacity) {
+                    closedir(libs);
                     closedir(apps);
                     errno = ENAMETOOLONG;
                     return -1;
                 }
+
                 memcpy(out, candidate, (size_t)length + 1);
+                closedir(libs);
                 closedir(apps);
                 return 0;
             }
-            if (errno != ENOENT && errno != ENOTDIR) last_error = errno;
+            closedir(libs);
         }
     }
-    closedir(apps);
 
-    if (!saw_candidate && !saw_slot && last_error == ENOENT) errno = ENOENT;
-    else errno = last_error;
+    closedir(apps);
+    errno = last_error;
     return -1;
 }
 
