@@ -1,34 +1,68 @@
 <template>
   <div class="page">
     <text class="title">HyperFile</text>
-    <text class="sub">{{ running ? '手机连同一 Wi-Fi，扫码上传' : '未启动' }}</text>
-
-    <div class="card">
-      <FlQrcode v-if="running && qrUrl" :text="qrUrl" :size="150" />
-      <text class="addr" v-if="running">{{ qrUrl }}</text>
-      <text class="addr" v-else>目标目录 {{ uploadDir }}</text>
-    </div>
-
-    <div class="btn" @click="Toggle">
-      <text class="btn-text">{{ running ? '停止' : '启动' }}</text>
-    </div>
-
-    <div class="row">
-      <text class="row-title">已接收 {{ received }}</text>
-      <div class="mini-btn" @click="RefreshFiles">
-        <text class="mini-text">刷新</text>
+    <div class="layout">
+      <div class="left-panel">
+        <scroll class="left-scroll" scroll-y="true">
+          <div class="left-content">
+            <text class="sub">{{ running ? '手机连同一 Wi-Fi，扫码上传' : 'HTTP 服务未启动' }}</text>
+            <div class="card">
+              <FlQrcode v-if="running && qrUrl" :text="qrUrl" :size="142" />
+              <text class="addr" v-if="running">{{ qrUrl }}</text>
+              <text class="addr" v-if="running && updateToken">更新验证码：{{ updateToken }}</text>
+              <text class="addr" v-if="!running">目标目录 {{ uploadDir }}</text>
+            </div>
+            <div class="btn" @click="Toggle">
+              <text class="btn-text">{{ running ? '停止服务' : '启动服务' }}</text>
+            </div>
+            <text class="received">已接收 {{ received }} 个文件</text>
+            <div class="adb-btn" @click="EnableADB">
+              <text class="adb-btn-text">打开 ADB</text>
+            </div>
+            <div class="adb-btn" @click="RunDiagnostics">
+              <text class="adb-btn-text">启动诊断</text>
+            </div>
+          </div>
+        </scroll>
+      </div>
+      <div class="right-panel">
+        <div class="row">
+          <text class="row-title">最近文件</text>
+          <div class="mini-btn" @click="RefreshFiles">
+            <text class="mini-text">刷新</text>
+          </div>
+        </div>
+        <scroll class="filelist" scroll-y="true">
+          <div class="file" v-for="f in files" :key="f">
+            <text class="file-name">{{ f }}</text>
+          </div>
+          <div class="bottom-space"></div>
+        </scroll>
       </div>
     </div>
-
-    <scroll class="filelist" scroll-y="true">
-      <div class="file" v-for="f in files" :key="f">
-        <text class="file-name">{{ f }}</text>
-      </div>
-      <div class="bottom-space"></div>
-    </scroll>
-
     <div class="toast" v-if="toast">
       <text class="toast-text">{{ toast }}</text>
+    </div>
+    <div class="diag-page" v-if="showDiagnostics">
+      <text class="setup-title">HTTP 服务启动诊断</text>
+      <scroll class="diag-scroll" scroll-y="true">
+        <div class="diag-row" v-for="line in diagnosticLines" :key="line.label">
+          <text class="diag-label">{{ line.label }}</text>
+          <text class="diag-value">{{ line.value }}</text>
+        </div>
+      </scroll>
+      <div class="setup-confirm" @click="CloseDiagnostics">
+        <text class="setup-confirm-text">关闭</text>
+      </div>
+    </div>
+    <div class="setup-page" v-if="showSetupConfirm">
+      <text class="setup-title">首次配置 HTTP 服务</text>
+      <text class="setup-desc">需要先将独立服务程序复制到设备并设置执行权限。此步骤不会启动服务。</text>
+      <text class="setup-path">/userdisk/HyperFile/hyperfile-httpd</text>
+      <div class="setup-actions">
+        <div class="setup-cancel" @click="CancelSetup"><text class="setup-cancel-text">暂不配置</text></div>
+        <div class="setup-confirm" @click="ConfirmSetup"><text class="setup-confirm-text">开始初始化</text></div>
+      </div>
     </div>
   </div>
 </template>
@@ -50,8 +84,13 @@ export default {
   data() {
     return {
       running: false,
+      showSetupConfirm: false,
+      showDiagnostics: false,
+      diagnosticLines: [],
+      initialized: false,
       ip: '',
       qrUrl: '',
+      updateToken: '',
       received: 0,
       files: [],
       toast: '',
@@ -72,12 +111,23 @@ export default {
         const http = await getHttp()
         const st = await http.status()
         this.running = !!st.running
+        this.initialized = !!st.initialized || this.running
         this.ip = st.ip || ''
         this.received = st.received || 0
         this.qrUrl = st.running && st.ip ? `http://${st.ip}:${st.port}/` : ''
+        this.updateToken = st.running ? await http.updateToken() : ''
       } catch (e) {
         this.showToast('状态获取失败')
       }
+    },
+    async waitForServer(attempts = 40) {
+      const http = await getHttp()
+      for (let i = 0; i < attempts; i++) {
+        await new Promise((resolve) => this.$page.setTimeout(resolve, 200))
+        const st = await http.status()
+        if (st.running) return st
+      }
+      throw new Error('HTTP 服务启动超时，请检查 /userdisk/HyperFile/httpd.log')
     },
     async RefreshFiles() {
       try {
@@ -88,23 +138,93 @@ export default {
         this.files = []
       }
     },
-    async Toggle() {
+    CancelSetup() {
+      this.showSetupConfirm = false
+    },
+    async ConfirmSetup() {
+      this.showSetupConfirm = false
       try {
         const http = await getHttp()
-        if (this.running) {
-          const st = await http.stop()
-          this.running = !!st.running
-          this.qrUrl = ''
-          this.showToast('已停止')
-        } else {
-          const st = await http.start(PORT, UPLOAD_DIR)
-          this.running = !!st.running
-          this.ip = st.ip || ''
-          this.qrUrl = st.ip ? `http://${st.ip}:${st.port}/` : ''
-          this.showToast('已启动')
-        }
+        await http.initialize()
+        this.initialized = true
+        this.showToast('初始化完成，再次点击启动即可运行')
+      } catch (e) {
+        this.showToast('初始化失败：' + (e && e.message ? e.message : e))
+      }
+    },
+    async RunDiagnostics() {
+      try {
+        const http = await getHttp()
+        const d = await http.diagnose()
+        const yesNo = (v) => v === true ? '是' : (v === false ? '否' : '未知')
+        const noexec = d.noexec === 1 ? '是' : (d.noexec === 0 ? '否' : '无法读取')
+        this.diagnosticLines = [
+          { label: '执行文件', value: d.path || '' },
+          { label: '文件存在', value: yesNo(d.exists) },
+          { label: '普通文件', value: yesNo(d.regularFile) },
+          { label: '可执行', value: yesNo(d.executable) },
+          { label: '权限', value: d.mode ? '0' + Number(d.mode).toString(8) : '未知' },
+          { label: '文件大小', value: String(d.size || 0) + ' bytes' },
+          { label: 'ELF 32 位', value: yesNo(d.elf32) },
+          { label: 'ARM 架构', value: yesNo(d.arm) + ' (e_machine=' + String(d.elfMachine || 0) + ')' },
+          { label: '检查错误', value: String(d.errno || 0) + ' / ' + (d.error || '') },
+          { label: '挂载点', value: d.mountPoint || '未知' },
+          { label: '挂载参数', value: d.mountOptions || '未知' },
+          { label: 'noexec', value: noexec },
+          { label: 'httpd.log', value: d.log || '空' }
+        ]
+        this.showDiagnostics = true
+      } catch (e) {
+        this.showToast('诊断失败：' + (e && e.message ? e.message : e))
+      }
+    },
+    CloseDiagnostics() {
+      this.showDiagnostics = false
+    },
+    async EnableADB() {
+      try {
+        const http = await getHttp()
+        await http.enableAdb()
+        this.showToast('ADB 已开启，请通过 Wi-Fi ADB 连接')
+      } catch (e) {
+        this.showToast('开启 ADB 失败：' + (e && e.message ? e.message : e))
+      }
+    },
+    async Toggle() {
+      if (!this.running) {
+        if (this.initialized) this.StartHttpd()
+        else this.showSetupConfirm = true
+        return
+      }
+      try {
+        const http = await getHttp()
+        const st = await http.stop()
+        this.running = !!st.running
+        this.qrUrl = ''
+        this.updateToken = ''
+        this.showToast('已停止')
       } catch (e) {
         this.showToast('操作失败：' + (e && e.message ? e.message : e))
+      }
+    },
+    async StartHttpd() {
+
+      try {
+        const http = await getHttp()
+        let st = await http.start(PORT, UPLOAD_DIR)
+        if (!st.running && st.starting) {
+          this.showToast('正在启动 HTTP 服务…')
+          st = await this.waitForServer()
+        }
+        this.running = !!st.running
+        this.ip = st.ip || ''
+        this.received = st.received || 0
+        this.qrUrl = st.ip ? `http://${st.ip}:${st.port}/` : ''
+        this.updateToken = this.running ? await http.updateToken() : ''
+        this.showToast(this.running ? 'HTTP 服务已启动' : '启动失败')
+      } catch (e) {
+        this.showToast('启动失败：' + (e && e.message ? e.message : e))
+        await this.RunDiagnostics()
       }
     }
   }
@@ -114,84 +234,104 @@ export default {
 <style lang="less">
 @import '../../styles/hyper.less';
 
-.sub {
-  font-size: 15px;
-  color: #888888;
-  margin-top: 4px;
+.page {
+  width: 100%;
+  height: 100%;
+  padding: 14px 18px;
+  flex-direction: column;
 }
-
-.card {
-  margin-top: 18px;
-  width: 92%;
-  background: #242424;
-  border-radius: 14px;
-  padding: 16px;
-  align-items: center;
-}
-
-.addr {
-  margin-top: 10px;
-  font-size: 15px;
-  color: #cccccc;
-}
-
-.btn {
-  margin-top: 16px;
-  padding: 12px 46px;
-  border-radius: 22px;
-  background-color: #ff7da8;
-}
-
-.btn-text {
-  font-size: 18px;
+.title {
+  font-size: 23px;
   font-weight: 600;
   color: #ffffff;
 }
-
-.row {
-  width: 92%;
+.layout {
+  width: 100%;
+  flex: 1;
+  flex-direction: row;
+  margin-top: 8px;
+}
+.left-panel {
+  width: 42%;
+  padding-right: 14px;
+  border-right-width: 1px;
+  border-right-color: #333333;
+}
+.left-scroll { width: 100%; height: 100%; }
+.left-content {
+  width: 100%;
+  min-height: 100%;
+  padding: 12px 0;
+  align-items: center;
+  justify-content: center;
+}
+.right-panel {
+  width: 58%;
+  padding-left: 14px;
+  flex-direction: column;
+}
+.sub { font-size: 14px; color: #888888; margin-bottom: 8px; }
+.card {
+  width: 94%;
+  background: #242424;
+  border-radius: 12px;
+  padding: 12px;
+  align-items: center;
+}
+.addr { margin-top: 8px; font-size: 13px; color: #cccccc; text-align: center; }
+.btn {
+  margin-top: 14px;
+  padding: 10px 32px;
+  border-radius: 20px;
+  background-color: #ff7da8;
+}
+.btn-text { font-size: 17px; font-weight: 600; color: #ffffff; }
+.received { margin-top: 12px; font-size: 13px; color: #888888; }
+.adb-btn {
   margin-top: 18px;
+  padding: 9px 26px;
+  border-radius: 18px;
+  border-width: 1px;
+  border-color: #555555;
+  background-color: #292929;
+}
+.adb-btn-text { font-size: 14px; color: #dddddd; }
+.row {
+  width: 100%;
+  margin-bottom: 8px;
   flex-direction: row;
   align-items: center;
   justify-content: space-between;
 }
-
-.row-title {
-  font-size: 15px;
-  color: #888888;
+.row-title { font-size: 15px; color: #cccccc; }
+.mini-btn { padding: 6px 14px; border-radius: 14px; background-color: #2c2c2c; }
+.mini-text { font-size: 13px; color: #cccccc; }
+.filelist { width: 100%; flex: 1; flex-direction: column; }
+.file { padding: 9px 10px; border-bottom-width: 1px; border-bottom-color: #2c2c2c; }
+.file-name { font-size: 14px; color: #ffffff; text-overflow: ellipsis; max-height: 34px; }
+.bottom-space { height: 12px; }
+.toast { position: absolute; left: 20%; right: 20%; bottom: 12px; padding: 9px; background-color: #333333; border-radius: 8px; align-items: center; }
+.toast-text { color: #ffffff; font-size: 13px; }
+.diag-page {
+  position: absolute; left: 0; right: 0; top: 0; bottom: 0; z-index: 21;
+  background-color: #1c1c1c; padding: 16px 20px;
+  flex-direction: column; align-items: center;
 }
-
-.mini-btn {
-  padding: 6px 16px;
-  border-radius: 14px;
-  background-color: #2c2c2c;
+.diag-scroll { width: 100%; flex: 1; margin-top: 8px; margin-bottom: 12px; }
+.diag-row { width: 100%; padding: 8px 4px; border-bottom-width: 1px; border-bottom-color: #333333; }
+.diag-label { font-size: 13px; color: #ff7da8; margin-bottom: 4px; }
+.diag-value { font-size: 13px; color: #dddddd; }
+.setup-page {
+  position: absolute; left: 0; right: 0; top: 0; bottom: 0; z-index: 20;
+  background-color: #1c1c1c; padding: 20px 26px;
+  align-items: center; justify-content: center;
 }
-
-.mini-text {
-  font-size: 14px;
-  color: #cccccc;
-}
-
-.filelist {
-  width: 92%;
-  margin-top: 8px;
-  flex-direction: column;
-}
-
-.file {
-  padding: 10px 12px;
-  border-bottom-width: 1px;
-  border-bottom-color: #2c2c2c;
-}
-
-.file-name {
-  font-size: 15px;
-  color: #ffffff;
-  text-overflow: ellipsis;
-  max-height: 36px;
-}
-
-.bottom-space {
-  height: 20px;
-}
+.setup-title { font-size: 22px; font-weight: 600; color: #ffffff; margin-bottom: 12px; }
+.setup-desc { width: 100%; font-size: 15px; line-height: 23px; color: #cccccc; margin-bottom: 10px; }
+.setup-path { width: 100%; font-size: 13px; color: #ff7da8; margin-bottom: 8px; }
+.setup-actions { width: 100%; flex-direction: row; justify-content: flex-end; margin-top: 12px; }
+.setup-cancel { padding: 10px 16px; border-radius: 18px; background-color: #333333; margin-right: 10px; }
+.setup-cancel-text { font-size: 15px; color: #cccccc; }
+.setup-confirm { padding: 10px 18px; border-radius: 18px; background-color: #ff7da8; }
+.setup-confirm-text { font-size: 15px; font-weight: 600; color: #ffffff; }
 </style>
