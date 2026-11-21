@@ -38,9 +38,16 @@ static int write_update_token(void)
     int len = snprintf(token, sizeof(token), "%09u", value % 1000000000U);
     int fd = open(UPDATE_TOKEN_FILE, O_WRONLY | O_CREAT | O_TRUNC, 0600);
     if (fd < 0) return -1;
-    ssize_t written = write(fd, token, (size_t)len);
-    int result = written == len && fsync(fd) == 0 ? 0 : -1;
+    size_t offset = 0;
+    while (offset < (size_t)len) {
+        ssize_t written = write(fd, token + offset, (size_t)len - offset);
+        if (written < 0 && errno == EINTR) continue;
+        if (written <= 0) { close(fd); unlink(UPDATE_TOKEN_FILE); return -1; }
+        offset += (size_t)written;
+    }
+    int result = fsync(fd) == 0 ? 0 : -1;
     close(fd);
+    if (result != 0) unlink(UPDATE_TOKEN_FILE);
     return result;
 }
 
@@ -69,6 +76,7 @@ int main(int argc, char **argv)
     if (hf_server_start(port, upload_dir) != 0)
         return 4;
     if (write_update_token() != 0) {
+        unlink(UPDATE_TOKEN_FILE);
         hf_server_stop();
         return 5;
     }
@@ -76,6 +84,7 @@ int main(int argc, char **argv)
     unlink(CONTROL_SOCKET);
     control_fd = socket(AF_UNIX, SOCK_STREAM, 0);
     if (control_fd < 0) {
+        unlink(UPDATE_TOKEN_FILE);
         hf_server_stop();
         return 2;
     }
@@ -87,6 +96,7 @@ int main(int argc, char **argv)
         listen(control_fd, CONTROL_BACKLOG) != 0) {
         close(control_fd);
         unlink(CONTROL_SOCKET);
+        unlink(UPDATE_TOKEN_FILE);
         hf_server_stop();
         return 3;
     }
