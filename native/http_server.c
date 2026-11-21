@@ -59,7 +59,7 @@ static const char WEB_UPLOAD_HTML[] =
 ".folder{color:#ffb6ce}.meta{font-size:12px;color:#888;text-align:right}.actions{display:flex;justify-content:flex-end;gap:6px}.actions button{padding:7px 9px;font-size:12px}"
 "input[type=file]{display:none}.empty{padding:32px;text-align:center;color:#888}.status{min-height:24px;color:#aaa;font-size:13px;margin:12px 2px}"
 "@media(max-width:620px){main{padding:0 10px}.entry{grid-template-columns:minmax(0,1fr) 64px}.meta{display:none}.actions{grid-column:1/-1;justify-content:flex-start}}"
-"</style></head><body><header><h1>HyperFile</h1><span class=\"hint\">设备文件管理</span></header>"
+"</style></head><body><header><h1>HyperFile</h1><nav><a href=\"/\">文件管理</a><a href=\"/about\">关于</a></nav></header>"
 "<main><div class=\"crumb\" id=\"crumb\">/</div><div class=\"toolbar\">"
 "<label class=\"pick\">上传文件<input id=\"upload\" type=\"file\" multiple></label>"
 "<button class=\"primary\" id=\"newdir\">新建文件夹</button><button id=\"paste\">粘贴</button>"
@@ -92,8 +92,8 @@ static const char WEB_UPLOAD_HTML[] =
 
 
 static const char ABOUT_HTML[] =
-"<!DOCTYPE html><html lang=\\"zh-CN\\"><head><meta charset=\\"utf-8\\">"
-"<meta name=\\"viewport\\" content=\\"width=device-width,initial-scale=1\\">"
+"<!DOCTYPE html><html lang=\"zh-CN\"><head><meta charset=\"utf-8\">"
+"<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
 "<title>关于 HyperFile</title><style>"
 "body{margin:0;background:#171717;color:#eee;font:15px system-ui,sans-serif}"
 "header{padding:18px 24px;background:#222;border-bottom:1px solid #333;display:flex;justify-content:space-between}"
@@ -102,13 +102,13 @@ static const char ABOUT_HTML[] =
 "input,button{padding:11px;border-radius:8px;border:1px solid #444;background:#292929;color:#eee;margin:8px 0}"
 "button{background:#ff7da8;color:#24151b;border:0;font-weight:600;cursor:pointer}"
 ".muted{color:#999;font-size:13px;line-height:1.6}#status{margin-top:12px;color:#ffb6ce}"
-"</style></head><body><header><b>HyperFile</b><nav><a href=\\"/\\">文件管理</a><a href=\\"/about\\">关于</a></nav></header>"
-"<main><h2>关于 HyperFile</h2><p class=\\"muted\\">HyperFile 文件传输与设备管理工具。</p>"
-"<section class=\\"card\\"><h3>手动更新</h3>"
-"<p class=\\"muted\\">选择新版本 HyperFile AMR 安装包，并输入设备主界面显示的更新验证码。更新期间 HTTP 服务会停止，安装完成后应用将自动重新启动。</p>"
-"<input id=\\"pkg\\" type=\\"file\\" accept=\\".amr\\"><br>"
-"<input id=\\"token\\" type=\\"password\\" inputmode=\\"numeric\\" maxlength=\\"12\\" placeholder=\\"设备上显示的更新验证码\\"><br>"
-"<button id=\\"update\\">手动更新</button><div id=\\"status\\"></div></section>"
+"</style></head><body><header><b>HyperFile</b><nav><a href=\"/\">文件管理</a><a href=\"/about\">关于</a></nav></header>"
+"<main><h2>关于 HyperFile</h2><p class=\"muted\">HyperFile 文件传输与设备管理工具。</p>"
+"<section class=\"card\"><h3>手动更新</h3>"
+"<p class=\"muted\">选择新版本 HyperFile AMR 安装包，并输入设备主界面显示的更新验证码。更新期间 HTTP 服务会停止，安装完成后应用将自动重新启动。</p>"
+"<input id=\"pkg\" type=\"file\" accept=\".amr\"><br>"
+"<input id=\"token\" type=\"password\" inputmode=\"numeric\" maxlength=\"12\" placeholder=\"设备上显示的更新验证码\"><br>"
+"<button id=\"update\">手动更新</button><div id=\"status\"></div></section>"
 "<script>var btn=document.getElementById('update'),statusEl=document.getElementById('status');"
 "btn.onclick=function(){var f=document.getElementById('pkg').files[0],token=document.getElementById('token').value;"
 "if(!f){statusEl.textContent='请先选择 AMR 文件';return}if(!token){statusEl.textContent='请输入设备上显示的更新验证码';return}"
@@ -381,12 +381,25 @@ static int hf_update_token_valid(const char *headers)
     if (!fp) return 0;
     if (!fgets(expected, sizeof(expected), fp)) expected[0] = 0;
     fclose(fp);
-    supplied[strcspn(supplied, "\\r\\n")] = 0;
-    expected[strcspn(expected, "\\r\\n")] = 0;
+    supplied[strcspn(supplied, "\r\n")] = 0;
+    expected[strcspn(expected, "\r\n")] = 0;
     if (!expected[0] || strlen(supplied) != strlen(expected)) return 0;
     unsigned char diff = 0;
-    for (size_t i = 0; i < strlen(expected); ++i) diff |= (unsigned char)(supplied[i] ^ expected[i]);
+    for (size_t i = 0; i < strlen(expected); ++i)
+        diff |= (unsigned char)(supplied[i] ^ expected[i]);
     return diff == 0;
+}
+
+static int hf_write_all(int fd, const char *data, size_t length)
+{
+    size_t offset = 0;
+    while (offset < length) {
+        ssize_t n = write(fd, data + offset, length - offset);
+        if (n < 0 && errno == EINTR) continue;
+        if (n <= 0) return -1;
+        offset += (size_t)n;
+    }
+    return 0;
 }
 
 static int hf_launch_updater(void)
@@ -399,9 +412,13 @@ static int hf_launch_updater(void)
     if (first < 0) { close(pipefd[0]); close(pipefd[1]); return -1; }
     if (first == 0) {
         close(pipefd[0]);
-        if (setsid() < 0) _exit(126);
+        if (setsid() < 0) {
+            int e = errno; (void)write(pipefd[1], &e, sizeof(e)); _exit(126);
+        }
         pid_t second = fork();
-        if (second < 0) _exit(126);
+        if (second < 0) {
+            int e = errno; (void)write(pipefd[1], &e, sizeof(e)); _exit(126);
+        }
         if (second > 0) _exit(0);
         int logfd = open(UPDATE_LOG, O_WRONLY | O_CREAT | O_APPEND, 0600);
         if (logfd >= 0) {
@@ -422,7 +439,9 @@ static int hf_launch_updater(void)
     do { n = read(pipefd[0], &child_errno, sizeof(child_errno)); } while (n < 0 && errno == EINTR);
     close(pipefd[0]);
     if (n > 0) { errno = child_errno; return -1; }
-    return n < 0 ? -1 : 0;
+    if (n < 0) return -1;
+    if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) { errno = ECHILD; return -1; }
+    return 0;
 }
 
 static void hf_handle_update(int fd, const char *headers, const char *body_prefix,
@@ -431,63 +450,58 @@ static void hf_handle_update(int fd, const char *headers, const char *body_prefi
     char filename[256] = "";
     int out = -1;
     long remain;
+    int failed = 0;
     if (!hf_update_token_valid(headers)) {
-        hf_respond_json(fd, 403, "{\\"ok\\":false,\\"error\\":\\"invalid update code\\"}");
+        hf_respond_json(fd, 403, "{\"ok\":false,\"error\":\"invalid update code\"}");
         return;
     }
     if (!hf_get_header(headers, "X-File-Name", filename, sizeof(filename)) ||
         strlen(filename) < 4 || strcasecmp(filename + strlen(filename) - 4, ".amr") != 0 ||
         content_len < 1024 || content_len > 256L * 1024L * 1024L) {
-        hf_respond_json(fd, 400, "{\\"ok\\":false,\\"error\\":\\"select a valid AMR package (1 KB to 256 MB)\\"}");
+        hf_respond_json(fd, 400, "{\"ok\":false,\"error\":\"select a valid AMR package (1 KB to 256 MB)\"}");
         return;
     }
     (void)unlink(UPDATE_PART);
     out = open(UPDATE_PART, O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, 0600);
     if (out < 0) {
-        hf_respond_json(fd, 500, "{\\"ok\\":false,\\"error\\":\\"cannot create update staging file\\"}");
+        hf_respond_json(fd, 500, "{\"ok\":false,\"error\":\"cannot create update staging file\"}");
         return;
     }
     remain = content_len;
     if (prefix_len) {
         size_t n = prefix_len < (size_t)remain ? prefix_len : (size_t)remain;
-        if (write(out, body_prefix, n) != (ssize_t)n) remain = -1;
+        if (hf_write_all(out, body_prefix, n) != 0) failed = 1;
         else remain -= (long)n;
     }
     char buffer[16384];
-    while (remain > 0) {
+    while (!failed && remain > 0) {
         size_t want = remain > (long)sizeof(buffer) ? sizeof(buffer) : (size_t)remain;
         ssize_t n = recv(fd, buffer, want, 0);
-        if (n <= 0) { remain = -1; break; }
-        size_t offset = 0;
-        while (offset < (size_t)n) {
-            ssize_t w = write(out, buffer + offset, (size_t)n - offset);
-            if (w < 0 && errno == EINTR) continue;
-            if (w <= 0) { remain = -1; break; }
-            offset += (size_t)w;
-        }
-        if (remain < 0) break;
+        if (n <= 0) { failed = 1; break; }
+        if (hf_write_all(out, buffer, (size_t)n) != 0) { failed = 1; break; }
         remain -= n;
     }
-    if (remain != 0 || fsync(out) != 0 || close(out) != 0) {
-        if (remain == 0) out = -1;
-        else if (out >= 0) close(out);
+    if (remain != 0) failed = 1;
+    if (!failed && fsync(out) != 0) failed = 1;
+    if (close(out) != 0) failed = 1;
+    out = -1;
+    if (failed) {
         unlink(UPDATE_PART);
-        hf_respond_json(fd, 500, "{\\"ok\\":false,\\"error\\":\\"update upload was incomplete\\"}");
+        hf_respond_json(fd, 500, "{\"ok\":false,\"error\":\"update upload was incomplete\"}");
         return;
     }
-    out = -1;
     if (rename(UPDATE_PART, UPDATE_PACKAGE) != 0) {
         unlink(UPDATE_PART);
-        hf_respond_json(fd, 500, "{\\"ok\\":false,\\"error\\":\\"cannot finalize update package\\"}");
+        hf_respond_json(fd, 500, "{\"ok\":false,\"error\":\"cannot finalize update package\"}");
         return;
     }
     if (hf_launch_updater() != 0) {
         char msg[192];
-        snprintf(msg, sizeof(msg), "{\\"ok\\":false,\\"error\\":\\"cannot start updater (errno %d)\\"}", errno);
+        snprintf(msg, sizeof(msg), "{\"ok\":false,\"error\":\"cannot start updater (errno %d)\"}", errno);
         hf_respond_json(fd, 500, msg);
         return;
     }
-    hf_respond_json(fd, 200, "{\\"ok\\":true,\\"started\\":true}");
+    hf_respond_json(fd, 200, "{\"ok\":true,\"started\":true}");
 }
 
 /* ---------------- 连接处理 ---------------- */
