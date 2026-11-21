@@ -21,9 +21,9 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-#define CONTROL_SOCKET "/userdisk/hyperfile/httpd.sock"
-#define SERVICE_DIR "/userdisk/hyperfile"
-#define LOG_FILE "/userdisk/hyperfile/httpd.log"
+#define CONTROL_SOCKET "/userdisk/HyperFile/httpd.sock"
+#define SERVICE_DIR "/userdisk/HyperFile"
+#define LOG_FILE "/userdisk/HyperFile/httpd.log"
 #define DEFAULT_UPLOAD_DIR "/userdisk/Favorite/HyperFile"
 #define DEFAULT_PORT 8080
 
@@ -80,24 +80,95 @@ static int daemon_path(char *out, size_t capacity)
     strcpy(slash + 1, "libhyperfile-httpd.so");
     return 0;
 }
-static int launch_daemon(int port, const char *dir)
+static int copy_daemon(const char *source, const char *destination)
 {
-    char executable[PATH_MAX], port_text[16];
-    pid_t pid;
-    int logfd;
-    if (daemon_path(executable, sizeof(executable)) != 0) return -1;
+    int in_fd = -1, out_fd = -1;
+    char temporary[PATH_MAX];
+    char buffer[16384];
+    ssize_t n;
+    int saved_errno = 0;
 
-    /*
-     * The Falcon resource extractor may drop executable permissions when it
-     * materializes files from the app package. Restore them on first launch.
-     * chmod() only changes the mode; it does not elevate the app's privileges.
-     */
-    if (access(executable, X_OK) != 0) {
-        if (chmod(executable, 0755) != 0 || access(executable, X_OK) != 0)
-            return -1;
+    if (snprintf(temporary, sizeof(temporary), "%s.tmp.%ld",
+                 destination, (long)getpid()) >= (int)sizeof(temporary)) {
+        errno = ENAMETOOLONG;
+        return -1;
     }
 
-    (void)mkdir("/userdisk/hyperfile", 0755);
+    in_fd = open(source, O_RDONLY);
+    if (in_fd < 0) return -1;
+
+    out_fd = open(temporary, O_WRONLY | O_CREAT | O_TRUNC, 0700);
+    if (out_fd < 0) {
+        saved_errno = errno;
+        close(in_fd);
+        errno = saved_errno;
+        return -1;
+    }
+
+    while ((n = read(in_fd, buffer, sizeof(buffer))) > 0) {
+        ssize_t offset = 0;
+        while (offset < n) {
+            ssize_t written = write(out_fd, buffer + offset, (size_t)(n - offset));
+            if (written < 0) {
+                if (errno == EINTR) continue;
+                saved_errno = errno;
+                goto fail;
+            }
+            offset += written;
+        }
+    }
+    if (n < 0) {
+        saved_errno = errno;
+        goto fail;
+    }
+    if (fchmod(out_fd, 0755) != 0 || fsync(out_fd) != 0) {
+        saved_errno = errno;
+        goto fail;
+    }
+    if (close(out_fd) != 0) {
+        out_fd = -1;
+        saved_errno = errno;
+        goto fail;
+    }
+    out_fd = -1;
+    close(in_fd);
+    in_fd = -1;
+
+    if (rename(temporary, destination) != 0) {
+        saved_errno = errno;
+        unlink(temporary);
+        errno = saved_errno;
+        return -1;
+    }
+    return 0;
+
+fail:
+    if (out_fd >= 0) close(out_fd);
+    if (in_fd >= 0) close(in_fd);
+    unlink(temporary);
+    errno = saved_errno ? saved_errno : EIO;
+    return -1;
+}
+
+static int launch_daemon(int port, const char *dir)
+{
+    char source[PATH_MAX], executable[PATH_MAX], port_text[16];
+    pid_t pid;
+    int logfd;
+
+    if (daemon_path(source, sizeof(source)) != 0) return -1;
+    if (mkdir(SERVICE_DIR, 0755) != 0 && errno != EEXIST) return -1;
+
+    if (snprintf(executable, sizeof(executable), "%s/hyperfile-httpd",
+                 SERVICE_DIR) >= (int)sizeof(executable)) {
+        errno = ENAMETOOLONG;
+        return -1;
+    }
+
+    /* Copy out of the app slot before executing; replace atomically. */
+    if (copy_daemon(source, executable) != 0) return -1;
+    if (access(executable, X_OK) != 0) return -1;
+
     snprintf(port_text, sizeof(port_text), "%d", port);
     pid = fork();
     if (pid < 0) return -1;
@@ -108,7 +179,9 @@ static int launch_daemon(int port, const char *dir)
         if (second > 0) _exit(0);
         logfd = open(LOG_FILE, O_WRONLY | O_CREAT | O_APPEND, 0644);
         if (logfd >= 0) {
-            dup2(logfd, STDOUT_FILENO); dup2(logfd, STDERR_FILENO); close(logfd);
+            dup2(logfd, STDOUT_FILENO);
+            dup2(logfd, STDERR_FILENO);
+            close(logfd);
         }
         close(STDIN_FILENO);
         execl(executable, executable, port_text, dir, (char *)NULL);
