@@ -73,9 +73,25 @@ int main(int argc, char **argv)
     signal(SIGTERM, on_signal);
     signal(SIGPIPE, SIG_IGN);
 
-    if (hf_server_start(port, upload_dir) != 0)
+    /* This is deliberately the first operation after entering main(). */
+    fprintf(stderr, "[httpd] entered main pid=%ld port=%d dir=%s\\n",
+            (long)getpid(), port, upload_dir);
+    fflush(stderr);
+
+    if (hf_server_start(port, upload_dir) != 0) {
+        int saved = errno;
+        fprintf(stderr, "[httpd] TCP server start failed: errno=%d (%s)\\n",
+                saved, strerror(saved));
+        fflush(stderr);
         return 4;
+    }
+    fprintf(stderr, "[httpd] TCP listener ready on port %d\\n", port);
+    fflush(stderr);
     if (write_update_token() != 0) {
+        int saved = errno;
+        fprintf(stderr, "[httpd] update token creation failed: errno=%d (%s)\\n",
+                saved, strerror(saved));
+        fflush(stderr);
         unlink(UPDATE_TOKEN_FILE);
         hf_server_stop();
         return 5;
@@ -84,6 +100,10 @@ int main(int argc, char **argv)
     unlink(CONTROL_SOCKET);
     control_fd = socket(AF_UNIX, SOCK_STREAM, 0);
     if (control_fd < 0) {
+        int saved = errno;
+        fprintf(stderr, "[httpd] control socket() failed: errno=%d (%s)\\n",
+                saved, strerror(saved));
+        fflush(stderr);
         unlink(UPDATE_TOKEN_FILE);
         hf_server_stop();
         return 2;
@@ -94,12 +114,18 @@ int main(int argc, char **argv)
     snprintf(addr.sun_path, sizeof(addr.sun_path), "%s", CONTROL_SOCKET);
     if (bind(control_fd, (struct sockaddr *)&addr, sizeof(addr)) != 0 ||
         listen(control_fd, CONTROL_BACKLOG) != 0) {
+        int saved = errno;
+        fprintf(stderr, "[httpd] control socket bind/listen failed: errno=%d (%s)\\n",
+                saved, strerror(saved));
+        fflush(stderr);
         close(control_fd);
         unlink(CONTROL_SOCKET);
         unlink(UPDATE_TOKEN_FILE);
         hf_server_stop();
         return 3;
     }
+    fprintf(stderr, "[httpd] ready; control socket=%s\\n", CONTROL_SOCKET);
+    fflush(stderr);
 
     while (!g_quit) {
         int client = accept(control_fd, NULL, NULL);
@@ -123,6 +149,8 @@ int main(int argc, char **argv)
         close(client);
     }
 
+    fprintf(stderr, "[httpd] stopping\\n");
+    fflush(stderr);
     hf_server_stop();
     close(control_fd);
     unlink(CONTROL_SOCKET);
