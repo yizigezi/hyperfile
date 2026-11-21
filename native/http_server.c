@@ -40,9 +40,9 @@
 /* ---------------- 内置上传网页（单文件，无外部依赖） ---------------- */
 
 static const char WEB_UPLOAD_HTML[] =
-"<!DOCTYPE html>\\n"
-"<html lang=\\"zh-CN\\"><head><meta charset=\\"utf-8\\">"
-"<meta name=\\"viewport\\" content=\\"width=device-width,initial-scale=1\\">"
+"<!DOCTYPE html>\n"
+"<html lang=\"zh-CN\"><head><meta charset=\"utf-8\">"
+"<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
 "<title>HyperFile</title><style>"
 ":root{color-scheme:dark;font-family:system-ui,sans-serif;background:#171717;color:#eee}"
 "*{box-sizing:border-box}body{margin:0;min-height:100vh}header{height:64px;padding:0 24px;display:flex;align-items:center;justify-content:space-between;background:#222;border-bottom:1px solid #333}"
@@ -57,12 +57,12 @@ static const char WEB_UPLOAD_HTML[] =
 ".folder{color:#ffb6ce}.meta{font-size:12px;color:#888;text-align:right}.actions{display:flex;justify-content:flex-end;gap:6px}.actions button{padding:7px 9px;font-size:12px}"
 "input[type=file]{display:none}.empty{padding:32px;text-align:center;color:#888}.status{min-height:24px;color:#aaa;font-size:13px;margin:12px 2px}"
 "@media(max-width:620px){main{padding:0 10px}.entry{grid-template-columns:minmax(0,1fr) 64px}.meta{display:none}.actions{grid-column:1/-1;justify-content:flex-start}}"
-"</style></head><body><header><h1>HyperFile</h1><span class=\\"hint\\">设备文件管理</span></header>"
-"<main><div class=\\"crumb\\" id=\\"crumb\\">/</div><div class=\\"toolbar\\">"
-"<label class=\\"pick\\">上传文件<input id=\\"upload\\" type=\\"file\\" multiple></label>"
-"<button class=\\"primary\\" id=\\"newdir\\">新建文件夹</button><button id=\\"paste\\">粘贴</button>"
-"<button id=\\"refresh\\">刷新</button></div><div class=\\"status\\" id=\\"status\\"></div>"
-"<section class=\\"panel\\" id=\\"list\\"></section></main><script>"
+"</style></head><body><header><h1>HyperFile</h1><span class=\"hint\">设备文件管理</span></header>"
+"<main><div class=\"crumb\" id=\"crumb\">/</div><div class=\"toolbar\">"
+"<label class=\"pick\">上传文件<input id=\"upload\" type=\"file\" multiple></label>"
+"<button class=\"primary\" id=\"newdir\">新建文件夹</button><button id=\"paste\">粘贴</button>"
+"<button id=\"refresh\">刷新</button></div><div class=\"status\" id=\"status\"></div>"
+"<section class=\"panel\" id=\"list\"></section></main><script>"
 "var current='',clipboard=null;var list=document.getElementById('list'),statusEl=document.getElementById('status');"
 "function enc(v){return encodeURIComponent(v)}function join(a,b){return a?a+'/'+b:b}"
 "function say(s){statusEl.textContent=s}function api(url,method){return fetch(url,{method:method||'GET'}).then(function(r){return r.json().then(function(j){if(!r.ok||j.ok===false)throw Error(j.error||('HTTP '+r.status));return j})})}"
@@ -84,7 +84,7 @@ static const char WEB_UPLOAD_HTML[] =
 "api('/api/copy?src='+enc(clipboard)+'&dest='+enc(dest),'POST').then(function(){say('已粘贴：'+dest);load()}).catch(function(e){say('粘贴失败：'+e.message)})};"
 "document.getElementById('upload').onchange=function(){var files=Array.prototype.slice.call(this.files);var i=0;function next(){if(i>=files.length){say('上传完成');load();return}var file=files[i++],xhr=new XMLHttpRequest();say('正在上传：'+file.name);"
 "xhr.open('PUT','/upload?path='+enc(current)+'&name='+enc(file.name));xhr.onload=function(){if(xhr.status===200)next();else say('上传失败：'+file.name)};xhr.onerror=function(){say('网络错误：'+file.name)};xhr.send(file)}next();this.value=''};"
-"load();</script></body></html>\\n";
+"load();</script></body></html>\n";
 
 
 /* ---------------- 全局状态（单 server 线程 + 主线程读，够用） ---------------- */
