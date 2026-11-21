@@ -306,10 +306,24 @@ static void hf_handle_upload(int fd, const char* path, const char* headers,
         hf_get_header(headers, "X-File-Name", raw_name, sizeof(raw_name));
 
     char name[512];
+    char relative_dir[512] = "";
+    char upload_dir[PATH_MAX];
     hf_sanitize_name(name, sizeof(name), raw_name);
+    if (hf_get_query(path, "path", relative_dir, sizeof(relative_dir))) {
+        char decoded_dir[512];
+        hf_url_decode(decoded_dir, sizeof(decoded_dir), relative_dir);
+        snprintf(relative_dir, sizeof(relative_dir), "%s", decoded_dir);
+    }
+    if (hf_fm_resolve_dir(g_status.dir, relative_dir, upload_dir, sizeof(upload_dir)) != 0) {
+        hf_respond_json(fd, 400, "{\\"ok\\":false,\\"error\\":\\"invalid upload directory\\"}");
+        return;
+    }
 
-    char filepath[1024];
-    snprintf(filepath, sizeof(filepath), "%s/%s", g_status.dir, name);
+    char filepath[PATH_MAX];
+    if (snprintf(filepath, sizeof(filepath), "%s/%s", upload_dir, name) >= (int)sizeof(filepath)) {
+        hf_respond_json(fd, 400, "{\\"ok\\":false,\\"error\\":\\"file path too long\\"}");
+        return;
+    }
 
     FILE* fp = fopen(filepath, "wb");
     if (!fp) {
@@ -379,6 +393,40 @@ static void hf_handle_conn(int fd)
     if (strcmp(method, "GET") == 0 && strcmp(path, "/") == 0) {
         hf_respond(fd, 200, "OK", "text/html; charset=utf-8",
                    WEB_UPLOAD_HTML, sizeof(WEB_UPLOAD_HTML) - 1);
+    } else if (strcmp(method, "GET") == 0 && strncmp(path, "/api/files", 10) == 0) {
+        char rel[512] = "", decoded[512], json[32768];
+        hf_get_query(path, "path", rel, sizeof(rel));
+        hf_url_decode(decoded, sizeof(decoded), rel);
+        if (hf_fm_list(g_status.dir, decoded, json, sizeof(json)) == 0)
+            hf_respond_json(fd, 200, json);
+        else
+            hf_respond_json(fd, 400, "{\\"ok\\":false,\\"error\\":\\"cannot list directory\\"}");
+    } else if (strcmp(method, "POST") == 0 && strncmp(path, "/api/mkdir", 10) == 0) {
+        char rel[512] = "", decoded[512];
+        hf_get_query(path, "path", rel, sizeof(rel));
+        hf_url_decode(decoded, sizeof(decoded), rel);
+        if (hf_fm_mkdir(g_status.dir, decoded) == 0)
+            hf_respond_json(fd, 200, "{\\"ok\\":true}");
+        else
+            hf_respond_json(fd, 400, "{\\"ok\\":false,\\"error\\":\\"cannot create directory\\"}");
+    } else if (strcmp(method, "DELETE") == 0 && strncmp(path, "/api/file", 9) == 0) {
+        char rel[512] = "", decoded[512];
+        hf_get_query(path, "path", rel, sizeof(rel));
+        hf_url_decode(decoded, sizeof(decoded), rel);
+        if (hf_fm_delete(g_status.dir, decoded) == 0)
+            hf_respond_json(fd, 200, "{\\"ok\\":true}");
+        else
+            hf_respond_json(fd, 400, "{\\"ok\\":false,\\"error\\":\\"cannot delete item\\"}");
+    } else if (strcmp(method, "POST") == 0 && strncmp(path, "/api/copy", 9) == 0) {
+        char src[512] = "", dst[512] = "", decoded_src[512], decoded_dst[512];
+        hf_get_query(path, "src", src, sizeof(src));
+        hf_get_query(path, "dest", dst, sizeof(dst));
+        hf_url_decode(decoded_src, sizeof(decoded_src), src);
+        hf_url_decode(decoded_dst, sizeof(decoded_dst), dst);
+        if (hf_fm_copy(g_status.dir, decoded_src, decoded_dst) == 0)
+            hf_respond_json(fd, 200, "{\\"ok\\":true}");
+        else
+            hf_respond_json(fd, 400, "{\\"ok\\":false,\\"error\\":\\"cannot copy item (destination may exist)\\"}");
     } else if (strcmp(method, "GET") == 0 && strncmp(path, "/status", 7) == 0) {
         char json[1280];
         pthread_mutex_lock(&g_lock);
