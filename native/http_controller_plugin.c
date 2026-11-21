@@ -12,6 +12,7 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <limits.h>
+#include <poll.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -238,11 +239,81 @@ static int initialized_daemon_path(char *executable, size_t capacity)
         errno = ENAMETOOLONG;
         return -1;
     }
-    if (stat(executable, &st) != 0 || !S_ISREG(st.st_mode) || access(executable, X_OK) != 0) {
-        if (errno == 0) errno = ENOENT;
-        return -1;
-    }
+    if (stat(executable, &st) != 0) return -1;
+    if (!S_ISREG(st.st_mode)) { errno = EINVAL; return -1; }
+    if (access(executable, X_OK) != 0) return -1;
     return 0;
+}
+
+/* Return the most specific mount covering the daemon path. */
+static void daemon_mount_info(char *mountpoint, size_t mountpoint_size,
+                              char *options, size_t options_size, int *noexec)
+{
+    FILE *fp = fopen("/proc/mounts", "r");
+    char device[256], point[PATH_MAX], type[64], opts[512];
+    size_t best = 0;
+    *noexec = -1;
+    mountpoint[0] = options[0] = '\\0';
+    if (!fp) return;
+    while (fscanf(fp, "%255s %4095s %63s %511s %*d %*d",
+                  device, point, type, opts) == 4) {
+        size_t n = strlen(point);
+        if (n < best || strncmp(SERVICE_DIR, point, n) != 0 ||
+            (SERVICE_DIR[n] != '\\0' && SERVICE_DIR[n] != '/')) continue;
+        best = n;
+        snprintf(mountpoint, mountpoint_size, "%s", point);
+        snprintf(options, options_size, "%s", opts);
+        *noexec = strstr(opts, "noexec") != NULL;
+    }
+    fclose(fp);
+}
+
+/* Diagnostics are gathered locally; no shell or external utility is required. */
+static JSValue js_diagnose(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv)
+{
+    char executable[PATH_MAX], mountpoint[PATH_MAX], options[512];
+    char log_text[3073] = "";
+    struct stat st;
+    int stat_ok, exec_ok, noexec;
+    int saved_error = 0;
+    int fd;
+    (void)this_val; (void)argc; (void)argv;
+
+    snprintf(executable, sizeof(executable), "%s/hyperfile-httpd", SERVICE_DIR);
+    stat_ok = stat(executable, &st) == 0;
+    if (!stat_ok) saved_error = errno;
+    exec_ok = stat_ok && S_ISREG(st.st_mode) && access(executable, X_OK) == 0;
+    if (stat_ok && !exec_ok && saved_error == 0) saved_error = errno ? errno : EACCES;
+    daemon_mount_info(mountpoint, sizeof(mountpoint), options, sizeof(options), &noexec);
+
+    fd = open(LOG_FILE, O_RDONLY | O_CLOEXEC);
+    if (fd >= 0) {
+        off_t end = lseek(fd, 0, SEEK_END);
+        if (end > 0) {
+            size_t want = end > 3072 ? 3072 : (size_t)end;
+            if (lseek(fd, end - (off_t)want, SEEK_SET) >= 0) {
+                ssize_t n = read(fd, log_text, want);
+                if (n > 0) log_text[n] = '\\0';
+            }
+        }
+        close(fd);
+    }
+    if (!log_text[0]) snprintf(log_text, sizeof(log_text), "日志不存在或为空");
+
+    JSValue result = JS_NewObject(ctx);
+    JS_SetPropertyStr(ctx, result, "path", JS_NewString(ctx, executable));
+    JS_SetPropertyStr(ctx, result, "exists", JS_NewBool(ctx, stat_ok));
+    JS_SetPropertyStr(ctx, result, "regularFile", JS_NewBool(ctx, stat_ok && S_ISREG(st.st_mode)));
+    JS_SetPropertyStr(ctx, result, "executable", JS_NewBool(ctx, exec_ok));
+    JS_SetPropertyStr(ctx, result, "mode", JS_NewInt32(ctx, stat_ok ? (int)(st.st_mode & 0777) : 0));
+    JS_SetPropertyStr(ctx, result, "size", JS_NewInt64(ctx, stat_ok ? (int64_t)st.st_size : 0));
+    JS_SetPropertyStr(ctx, result, "errno", JS_NewInt32(ctx, saved_error));
+    JS_SetPropertyStr(ctx, result, "error", JS_NewString(ctx, saved_error ? strerror(saved_error) : "none"));
+    JS_SetPropertyStr(ctx, result, "mountPoint", JS_NewString(ctx, mountpoint));
+    JS_SetPropertyStr(ctx, result, "mountOptions", JS_NewString(ctx, options));
+    JS_SetPropertyStr(ctx, result, "noexec", JS_NewInt32(ctx, noexec));
+    JS_SetPropertyStr(ctx, result, "log", JS_NewString(ctx, log_text));
+    return resolved(ctx, result);
 }
 
 static int initialize_daemon(char *stage, size_t stage_capacity, char *source_out, size_t source_capacity)
@@ -288,30 +359,68 @@ static int launch_daemon(int port, const char *dir)
 {
     char executable[PATH_MAX], port_text[16];
     pid_t pid;
-    int logfd;
+    int pipefd[2], status = 0, child_error = 0;
+    struct pollfd pfd;
+    ssize_t n;
 
-    if (initialized_daemon_path(executable, sizeof(executable)) != 0) { errno = ENOENT; return -1; }
+    if (initialized_daemon_path(executable, sizeof(executable)) != 0) return -1;
+    if (pipe(pipefd) != 0) return -1;
+    if (fcntl(pipefd[1], F_SETFD, FD_CLOEXEC) != 0) {
+        int saved = errno; close(pipefd[0]); close(pipefd[1]); errno = saved; return -1;
+    }
 
     snprintf(port_text, sizeof(port_text), "%d", port);
     pid = fork();
-    if (pid < 0) return -1;
+    if (pid < 0) {
+        int saved = errno; close(pipefd[0]); close(pipefd[1]); errno = saved; return -1;
+    }
     if (pid == 0) {
-        (void)setsid();
-        pid_t second = fork();
-        if (second < 0) _exit(126);
-        if (second > 0) _exit(0);
-        logfd = open(LOG_FILE, O_WRONLY | O_CREAT | O_APPEND, 0644);
-        if (logfd >= 0) {
-            dup2(logfd, STDOUT_FILENO);
-            dup2(logfd, STDERR_FILENO);
-            close(logfd);
+        close(pipefd[0]);
+        if (setsid() != 0) {
+            child_error = errno; (void)write(pipefd[1], &child_error, sizeof(child_error)); _exit(126);
         }
+        pid_t second = fork();
+        if (second < 0) {
+            child_error = errno; (void)write(pipefd[1], &child_error, sizeof(child_error)); _exit(126);
+        }
+        if (second > 0) _exit(0);
+
+        int logfd = open(LOG_FILE, O_WRONLY | O_CREAT | O_APPEND, 0644);
+        if (logfd >= 0) {
+            (void)dup2(logfd, STDOUT_FILENO);
+            (void)dup2(logfd, STDERR_FILENO);
+            if (logfd > STDERR_FILENO) close(logfd);
+        } else {
+            dprintf(STDERR_FILENO, "[launcher] cannot open %s: errno=%d (%s)\\n",
+                    LOG_FILE, errno, strerror(errno));
+        }
+        dprintf(STDERR_FILENO, "[launcher] exec %s port=%s dir=%s\\n", executable, port_text, dir);
         close(STDIN_FILENO);
         execl(executable, executable, port_text, dir, (char *)NULL);
+        child_error = errno;
+        dprintf(STDERR_FILENO, "[launcher] exec failed: errno=%d (%s)\\n",
+                child_error, strerror(child_error));
+        (void)write(pipefd[1], &child_error, sizeof(child_error));
         _exit(127);
     }
-    (void)waitpid(pid, NULL, 0);
-    return 0;
+
+    close(pipefd[1]);
+    while (waitpid(pid, &status, 0) < 0 && errno == EINTR) {}
+    pfd.fd = pipefd[0]; pfd.events = POLLIN | POLLHUP; pfd.revents = 0;
+    int polled;
+    do { polled = poll(&pfd, 1, 500); } while (polled < 0 && errno == EINTR);
+    if (polled > 0 && (pfd.revents & POLLIN)) {
+        do { n = read(pipefd[0], &child_error, sizeof(child_error)); } while (n < 0 && errno == EINTR);
+        close(pipefd[0]);
+        if (n == (ssize_t)sizeof(child_error)) { errno = child_error; return -1; }
+        if (n < 0) return -1;
+    } else {
+        close(pipefd[0]);
+        if (polled == 0) { errno = ETIMEDOUT; return -1; }
+        if (polled < 0) return -1;
+    }
+    if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) { errno = ECHILD; return -1; }
+    return 0; /* EOF means exec() closed the CLOEXEC pipe successfully. */
 }
 static JSValue js_initialize(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv)
 {
@@ -389,7 +498,10 @@ static JSValue js_start(JSContext *ctx, JSValueConst this_val, int argc, JSValue
     }
     if (launch_daemon(port, dir) != 0) {
         if (argc > 1) JS_FreeCString(ctx, dir);
-        return rejected(ctx, "cannot launch hyperfile-httpd; check daemon path and permissions");
+        char message[256];
+        int error = errno;
+        snprintf(message, sizeof(message), "cannot launch hyperfile-httpd: errno=%d (%s)", error, strerror(error));
+        return rejected(ctx, message);
     }
     if (argc > 1) JS_FreeCString(ctx, dir);
     return resolved(ctx, parse_json(ctx, "{\"ok\":true,\"running\":false,\"starting\":true}"));
@@ -420,6 +532,7 @@ static int module_init(JSContext *ctx, JSModuleDef *m)
 {
     JSValue api = JS_NewObject(ctx);
     JS_SetPropertyStr(ctx, api, "initialize", JS_NewCFunction(ctx, js_initialize, "initialize", 0));
+    JS_SetPropertyStr(ctx, api, "diagnose", JS_NewCFunction(ctx, js_diagnose, "diagnose", 0));
     JS_SetPropertyStr(ctx, api, "enableAdb", JS_NewCFunction(ctx, js_enable_adb, "enableAdb", 0));
     JS_SetPropertyStr(ctx, api, "updateToken", JS_NewCFunction(ctx, js_update_token, "updateToken", 0));
     JS_SetPropertyStr(ctx, api, "start", JS_NewCFunction(ctx, js_start, "start", 2));
