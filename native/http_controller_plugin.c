@@ -9,6 +9,7 @@
 
 #include <dlfcn.h>
 #include <dirent.h>
+#include <elf.h>
 #include <fcntl.h>
 #include <errno.h>
 #include <limits.h>
@@ -276,14 +277,30 @@ static JSValue js_diagnose(JSContext *ctx, JSValueConst this_val, int argc, JSVa
     struct stat st;
     int stat_ok, exec_ok, noexec;
     int saved_error = 0;
+    int elf32 = 0, elf_machine = 0, elf_arm = 0;
     int fd;
     (void)this_val; (void)argc; (void)argv;
 
     snprintf(executable, sizeof(executable), "%s/hyperfile-httpd", SERVICE_DIR);
     stat_ok = stat(executable, &st) == 0;
     if (!stat_ok) saved_error = errno;
+    if (stat_ok && !S_ISREG(st.st_mode)) saved_error = EINVAL;
     exec_ok = stat_ok && S_ISREG(st.st_mode) && access(executable, X_OK) == 0;
     if (stat_ok && !exec_ok && saved_error == 0) saved_error = errno ? errno : EACCES;
+    if (stat_ok) {
+        Elf32_Ehdr header;
+        int elf_fd = open(executable, O_RDONLY | O_CLOEXEC);
+        if (elf_fd >= 0) {
+            ssize_t got = read(elf_fd, &header, sizeof(header));
+            close(elf_fd);
+            if (got == (ssize_t)sizeof(header) &&
+                memcmp(header.e_ident, ELFMAG, SELFMAG) == 0) {
+                elf32 = header.e_ident[EI_CLASS] == ELFCLASS32;
+                elf_machine = header.e_machine;
+                elf_arm = elf32 && elf_machine == EM_ARM;
+            }
+        }
+    }
     daemon_mount_info(mountpoint, sizeof(mountpoint), options, sizeof(options), &noexec);
 
     fd = open(LOG_FILE, O_RDONLY | O_CLOEXEC);
@@ -307,6 +324,9 @@ static JSValue js_diagnose(JSContext *ctx, JSValueConst this_val, int argc, JSVa
     JS_SetPropertyStr(ctx, result, "executable", JS_NewBool(ctx, exec_ok));
     JS_SetPropertyStr(ctx, result, "mode", JS_NewInt32(ctx, stat_ok ? (int)(st.st_mode & 0777) : 0));
     JS_SetPropertyStr(ctx, result, "size", JS_NewInt64(ctx, stat_ok ? (int64_t)st.st_size : 0));
+    JS_SetPropertyStr(ctx, result, "elf32", JS_NewBool(ctx, elf32));
+    JS_SetPropertyStr(ctx, result, "elfMachine", JS_NewInt32(ctx, elf_machine));
+    JS_SetPropertyStr(ctx, result, "arm", JS_NewBool(ctx, elf_arm));
     JS_SetPropertyStr(ctx, result, "errno", JS_NewInt32(ctx, saved_error));
     JS_SetPropertyStr(ctx, result, "error", JS_NewString(ctx, saved_error ? strerror(saved_error) : "none"));
     JS_SetPropertyStr(ctx, result, "mountPoint", JS_NewString(ctx, mountpoint));
