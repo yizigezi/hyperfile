@@ -14,7 +14,7 @@
 #include <sys/un.h>
 #include <unistd.h>
 
-#define CONTROL_SOCKET "/userdisk/hyperfile/httpd.sock"
+#define CONTROL_SOCKET "/userdisk/HyperFile/httpd.sock"
 #define CONTROL_BACKLOG 4
 
 static volatile sig_atomic_t g_quit;
