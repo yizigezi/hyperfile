@@ -348,14 +348,12 @@ static JSValue js_enable_adb(JSContext *ctx, JSValueConst this_val, int argc, JS
             return rejected(ctx, message);
         }
         if (fsync(fd) != 0) {
-            int saved = errno;
             close(fd);
-            errno = saved;
             return rejected(ctx, "cannot sync ADB marker files");
         }
         close(fd);
     }
-    return resolved(ctx, parse_json(ctx, "{\\"ok\\":true,\\"enabled\\":true}"));
+    return resolved(ctx, parse_json(ctx, "{\"ok\":true,\"enabled\":true}"));
 }
 
 static JSValue js_update_token(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv)
@@ -367,7 +365,7 @@ static JSValue js_update_token(JSContext *ctx, JSValueConst this_val, int argc, 
     if (fp) {
         (void)fgets(token, sizeof(token), fp);
         fclose(fp);
-        token[strcspn(token, "\\r\\n")] = 0;
+        token[strcspn(token, "\r\n")] = 0;
     }
     return resolved(ctx, JS_NewString(ctx, token));
 }
