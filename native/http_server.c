@@ -115,7 +115,7 @@ static const char ABOUT_HTML[] =
 "if(!confirm('将卸载并重新安装 HyperFile，确认继续？'))return;btn.disabled=true;statusEl.textContent='正在上传更新包…';"
 "var x=new XMLHttpRequest();x.open('PUT','/api/update');x.setRequestHeader('X-File-Name',f.name);"
 "x.setRequestHeader('X-HyperFile-Token',token);x.onload=function(){btn.disabled=false;try{var j=JSON.parse(x.responseText);"
-"if(x.status===200&&j.ok){statusEl.textContent='更新程序已启动。服务即将断开，安装完成后 HyperFile 会自动重启。'}"
+"if(x.status===200&&j.ok){document.open();document.write('<!DOCTYPE html><html lang=\'zh-CN\'><head><meta charset=\'utf-8\'><meta name=\'viewport\' content=\'width=device-width,initial-scale=1\'><title>HyperFile 正在更新</title><style>*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;background:#171717;color:#eee;font:16px system-ui,sans-serif}.panel{text-align:center;padding:32px;max-width:420px}.spinner{width:36px;height:36px;margin:0 auto 22px;border:3px solid #444;border-top-color:#ff9cbd;border-radius:50%;animation:spin 1s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}h2{font-size:21px;font-weight:600}p{color:#aaa;line-height:1.7;font-size:14px}</style></head><body><main class=\'panel\'><div class=\'spinner\'></div><h2>HyperFile 正在更新</h2><p>更新程序已启动，HTTP 服务即将停止。请勿关闭设备或中断电源，更新完成后 HyperFile 将自动重新启动。</p><p>如果长时间没有恢复，请查看设备上的 /tmp/hyperfile-update.log。</p></main></body></html>');document.close();}"
 "else statusEl.textContent='更新失败：'+(j.error||x.status)}}catch(e){statusEl.textContent='更新请求失败：'+x.status}};"
 "x.onerror=function(){btn.disabled=false;statusEl.textContent='网络错误'};x.send(f)};</script></main></body></html>";
 
