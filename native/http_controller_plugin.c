@@ -496,6 +496,9 @@ static int launch_daemon(int port, const char *dir)
             errno = child_error;
             return -1;
         }
+    } else if (polled > 0 && (pfd.revents & POLLHUP)) {
+        /* CLOEXEC closed the writer: exec succeeded and no error payload remains. */
+        close(pipefd[0]);
     } else {
         int saved = polled < 0 ? errno : (polled == 0 ? ETIMEDOUT : EIO);
         close(pipefd[0]);
