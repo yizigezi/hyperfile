@@ -100,7 +100,7 @@ export default {
         const st = await http.status()
         if (st.running) return st
       }
-      throw new Error('HTTP 服务启动超时，请检查 /userdisk/hyperfile/httpd.log')
+      throw new Error('HTTP 服务启动超时，请检查 /userdisk/HyperFile/httpd.log')
     },
     async RefreshFiles() {
       try {
