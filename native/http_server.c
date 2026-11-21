@@ -451,6 +451,10 @@ static void hf_handle_update(int fd, const char *headers, const char *body_prefi
     int out = -1;
     long remain;
     int failed = 0;
+    if (access("/tmp/hyperfile-update.lock", F_OK) == 0) {
+        hf_respond_json(fd, 409, "{\\"ok\\":false,\\"error\\":\\"an update is already running\\"}");
+        return;
+    }
     if (!hf_update_token_valid(headers)) {
         hf_respond_json(fd, 403, "{\"ok\":false,\"error\":\"invalid update code\"}");
         return;
