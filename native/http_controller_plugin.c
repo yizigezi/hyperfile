@@ -196,24 +196,42 @@ fail:
     return -1;
 }
 
-static int launch_daemon(int port, const char *dir)
+static int initialized_daemon_path(char *executable, size_t capacity)
 {
-    char source[PATH_MAX], executable[PATH_MAX], port_text[16];
-    pid_t pid;
-    int logfd;
-
-    if (daemon_path(source, sizeof(source)) != 0) return -1;
-    if (mkdir(SERVICE_DIR, 0755) != 0 && errno != EEXIST) return -1;
-
-    if (snprintf(executable, sizeof(executable), "%s/hyperfile-httpd",
-                 SERVICE_DIR) >= (int)sizeof(executable)) {
+    struct stat st;
+    if (snprintf(executable, capacity, "%s/hyperfile-httpd", SERVICE_DIR) >= (int)capacity) {
         errno = ENAMETOOLONG;
         return -1;
     }
+    if (stat(executable, &st) != 0 || !S_ISREG(st.st_mode) || access(executable, X_OK) != 0) {
+        if (errno == 0) errno = ENOENT;
+        return -1;
+    }
+    return 0;
+}
 
-    /* Copy out of the app slot before executing; replace atomically. */
+static int initialize_daemon(void)
+{
+    char source[PATH_MAX], executable[PATH_MAX];
+    struct stat st;
+    if (mkdir(SERVICE_DIR, 0755) != 0 && errno != EEXIST) return -1;
+    if (daemon_path(source, sizeof(source)) != 0) return -1;
+    if (snprintf(executable, sizeof(executable), "%s/hyperfile-httpd", SERVICE_DIR) >= (int)sizeof(executable)) {
+        errno = ENAMETOOLONG;
+        return -1;
+    }
     if (copy_daemon(source, executable) != 0) return -1;
-    if (access(executable, X_OK) != 0) return -1;
+    if (stat(executable, &st) != 0 || !S_ISREG(st.st_mode) || access(executable, X_OK) != 0) return -1;
+    return 0;
+}
+
+static int launch_daemon(int port, const char *dir)
+{
+    char executable[PATH_MAX], port_text[16];
+    pid_t pid;
+    int logfd;
+
+    if (initialized_daemon_path(executable, sizeof(executable)) != 0) return -1;
 
     snprintf(port_text, sizeof(port_text), "%d", port);
     pid = fork();
@@ -235,6 +253,18 @@ static int launch_daemon(int port, const char *dir)
     }
     (void)waitpid(pid, NULL, 0);
     return 0;
+}
+static JSValue js_initialize(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv)
+{
+    char result[256];
+    (void)this_val; (void)argc; (void)argv;
+    if (initialize_daemon() != 0) {
+        char message[256];
+        snprintf(message, sizeof(message), "httpd initialization failed (errno=%d)", errno);
+        return rejected(ctx, message);
+    }
+    snprintf(result, sizeof(result), "{\\"ok\\":true,\\"initialized\\":true,\\"path\\":\\"%s/hyperfile-httpd\\"}", SERVICE_DIR);
+    return resolved(ctx, parse_json(ctx, result));
 }
 static JSValue js_start(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv)
 {
@@ -279,6 +309,7 @@ static JSValue js_stop(JSContext *ctx, JSValueConst this_val, int argc, JSValueC
 static int module_init(JSContext *ctx, JSModuleDef *m)
 {
     JSValue api = JS_NewObject(ctx);
+    JS_SetPropertyStr(ctx, api, "initialize", JS_NewCFunction(ctx, js_initialize, "initialize", 0));
     JS_SetPropertyStr(ctx, api, "start", JS_NewCFunction(ctx, js_start, "start", 2));
     JS_SetPropertyStr(ctx, api, "stop", JS_NewCFunction(ctx, js_stop, "stop", 0));
     JS_SetPropertyStr(ctx, api, "status", JS_NewCFunction(ctx, js_status, "status", 0));
