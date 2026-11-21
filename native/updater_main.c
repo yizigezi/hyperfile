@@ -160,6 +160,12 @@ int main(void)
     setvbuf(g_log, NULL, _IOLBF, 0);
     log_line("HyperFile updater started");
 
+    /*
+     * Let the HTTP response reach the browser and let its XHR callback
+     * replace the page with the standalone update screen before shutdown.
+     */
+    usleep(2000000);
+
     int lock = open(LOCK_PATH, O_WRONLY | O_CREAT | O_EXCL, 0600);
     if (lock < 0) {
         log_line("another update is already running");
