@@ -21,7 +21,7 @@ fi
 mkdir -p "$OUT" "$LIBS"
 echo "== Build standalone hyperfile-httpd =="
 "${CC[@]}" -O2 -g0 -fno-ident -I "$INC" \
-  "$ROOT/native/http_server.c" "$ROOT/native/httpd_main.c" \
+  "$ROOT/native/http_server.c" "$ROOT/native/file_manager.c" "$ROOT/native/httpd_main.c" \
   -lpthread -o "$OUT/hyperfile-httpd"
 
 echo "== Build QuickJS process controller plugin =="
