@@ -206,22 +206,17 @@ export default {
 }
 .left-panel {
   width: 42%;
-  height: 100%;
   padding-right: 14px;
   border-right-width: 1px;
   border-right-color: #333333;
-  flex-direction: column;
 }
-.left-scroll {
-  width: 100%;
-  height: 100%;
-  flex: 1;
-}
+.left-scroll { width: 100%; height: 100%; }
 .left-content {
   width: 100%;
-  padding: 12px 0 20px;
+  min-height: 100%;
+  padding: 12px 0;
   align-items: center;
-  justify-content: flex-start;
+  justify-content: center;
 }
 .right-panel {
   width: 58%;
