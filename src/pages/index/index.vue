@@ -79,7 +79,8 @@ export default {
   data() {
     return {
       running: false,
-      showSetupConfirm: false,\n      showStartConfirm: false,\n      initialized: false,
+      showSetupConfirm: false,
+      showStartConfirm: false,\n      initialized: false,
       ip: '',
       qrUrl: '',
       received: 0,
@@ -102,6 +103,7 @@ export default {
         const http = await getHttp()
         const st = await http.status()
         this.running = !!st.running
+        this.initialized = !!st.initialized || this.running
         this.ip = st.ip || ''
         this.received = st.received || 0
         this.qrUrl = st.running && st.ip ? `http://${st.ip}:${st.port}/` : ''
@@ -130,13 +132,25 @@ export default {
     CancelSetup() {
       this.showSetupConfirm = false
     },
+    CancelStart() {
+      this.showStartConfirm = false
+    },
     async ConfirmSetup() {
       this.showSetupConfirm = false
-      await this.StartHttpd()
+      try {
+        const http = await getHttp()
+        await http.initialize()
+        this.initialized = true
+        this.showStartConfirm = true
+        this.showToast('httpd 初始化完成')
+      } catch (e) {
+        this.showToast('初始化失败：' + (e && e.message ? e.message : e))
+      }
     },
     async Toggle() {
       if (!this.running) {
-        this.showSetupConfirm = true
+        if (this.initialized) this.showStartConfirm = true
+        else this.showSetupConfirm = true
         return
       }
       try {
@@ -150,6 +164,7 @@ export default {
       }
     },
     async StartHttpd() {
+      this.showStartConfirm = false
       try {
         const http = await getHttp()
         let st = await http.start(PORT, UPLOAD_DIR)
@@ -163,7 +178,7 @@ export default {
         this.qrUrl = st.ip ? `http://${st.ip}:${st.port}/` : ''
         this.showToast(this.running ? 'HTTP 服务已启动' : '启动失败')
       } catch (e) {
-        this.showToast('配置/启动失败：' + (e && e.message ? e.message : e))
+        this.showToast('启动失败：' + (e && e.message ? e.message : e))
       }
     }
   }
