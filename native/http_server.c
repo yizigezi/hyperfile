@@ -198,8 +198,10 @@ static int hf_read_headers(int fd, char* buf, size_t buflen, size_t* total_read)
         used += (size_t)n;
         buf[used] = '\0';
         const char* end = strstr(buf, "\r\n\r\n");
-        if (end)
-            return (int)(end - buf) + 4; /* 头长度（含空行），body 还在 buf 里但不算入 */
+        if (end) {
+            if (total_read) *total_read = used;
+            return (int)(end - buf) + 4; /* header length including terminator */
+        }
     }
     return -2;
 }
@@ -371,7 +373,8 @@ static void hf_handle_upload(int fd, const char* path, const char* headers,
 static void hf_handle_conn(int fd)
 {
     char headers[16384];
-    size_t total_read = 0;\n    int hlen = hf_read_headers(fd, headers, sizeof(headers), &total_read);
+    size_t total_read = 0;
+    int hlen = hf_read_headers(fd, headers, sizeof(headers), &total_read);
     if (hlen <= 0) {
         close(fd);
         return;
@@ -383,8 +386,7 @@ static void hf_handle_conn(int fd)
 
     /* body 可能已经随头部一起读进来了，记下前缀 */
     const char* body_prefix = headers + hlen;
-    /* headers 缓冲里尾部还有 recv 多读的 body 字节，重算长度 */
-    size_t total_read = strlen(headers);
+    /* Use the byte count returned by recv; strlen is invalid for binary bodies. */
     size_t prefix_len = total_read > (size_t)hlen ? total_read - (size_t)hlen : 0;
 
     char cl_buf[32] = "";
