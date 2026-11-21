@@ -3,16 +3,23 @@
     <text class="title">HyperFile</text>
     <div class="layout">
       <div class="left-panel">
-        <text class="sub">{{ running ? '手机连同一 Wi-Fi，扫码上传' : 'HTTP 服务未启动' }}</text>
-        <div class="card">
-          <FlQrcode v-if="running && qrUrl" :text="qrUrl" :size="142" />
-          <text class="addr" v-if="running">{{ qrUrl }}</text>
-          <text class="addr" v-else>目标目录 {{ uploadDir }}</text>
-        </div>
-        <div class="btn" @click="Toggle">
-          <text class="btn-text">{{ running ? '停止服务' : '启动服务' }}</text>
-        </div>
-        <text class="received">已接收 {{ received }} 个文件</text>
+        <scroll class="left-scroll" scroll-y="true">
+          <div class="left-content">
+            <text class="sub">{{ running ? '手机连同一 Wi-Fi，扫码上传' : 'HTTP 服务未启动' }}</text>
+            <div class="card">
+              <FlQrcode v-if="running && qrUrl" :text="qrUrl" :size="142" />
+              <text class="addr" v-if="running">{{ qrUrl }}</text>
+              <text class="addr" v-else>目标目录 {{ uploadDir }}</text>
+            </div>
+            <div class="btn" @click="Toggle">
+              <text class="btn-text">{{ running ? '停止服务' : '启动服务' }}</text>
+            </div>
+            <text class="received">已接收 {{ received }} 个文件</text>
+            <div class="adb-btn" @click="EnableADB">
+              <text class="adb-btn-text">打开 ADB</text>
+            </div>
+          </div>
+        </scroll>
       </div>
       <div class="right-panel">
         <div class="row">
@@ -125,6 +132,15 @@ export default {
         this.showToast('初始化失败：' + (e && e.message ? e.message : e))
       }
     },
+    async EnableADB() {
+      try {
+        const http = await getHttp()
+        await http.enableAdb()
+        this.showToast('ADB 已开启，请通过 Wi-Fi ADB 连接')
+      } catch (e) {
+        this.showToast('开启 ADB 失败：' + (e && e.message ? e.message : e))
+      }
+    },
     async Toggle() {
       if (!this.running) {
         if (this.initialized) this.StartHttpd()
@@ -186,10 +202,16 @@ export default {
 .left-panel {
   width: 42%;
   padding-right: 14px;
-  align-items: center;
-  justify-content: center;
   border-right-width: 1px;
   border-right-color: #333333;
+}
+.left-scroll { width: 100%; height: 100%; }
+.left-content {
+  width: 100%;
+  min-height: 100%;
+  padding: 12px 0;
+  align-items: center;
+  justify-content: center;
 }
 .right-panel {
   width: 58%;
@@ -213,6 +235,15 @@ export default {
 }
 .btn-text { font-size: 17px; font-weight: 600; color: #ffffff; }
 .received { margin-top: 12px; font-size: 13px; color: #888888; }
+.adb-btn {
+  margin-top: 18px;
+  padding: 9px 26px;
+  border-radius: 18px;
+  border-width: 1px;
+  border-color: #555555;
+  background-color: #292929;
+}
+.adb-btn-text { font-size: 14px; color: #dddddd; }
 .row {
   width: 100%;
   margin-bottom: 8px;
