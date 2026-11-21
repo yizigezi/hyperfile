@@ -186,7 +186,7 @@ static void hf_sanitize_name(char* out, size_t outlen, const char* raw)
 /* ---------------- HTTP 读写小工具 ---------------- */
 
 /* 读到 \r\n\r\n；返回头长度（含空行），出错 -1，超上限 -2 */
-static int hf_read_headers(int fd, char* buf, size_t buflen)
+static int hf_read_headers(int fd, char* buf, size_t buflen, size_t* total_read)
 {
     size_t used = 0;
     while (used + 1 < buflen) {
@@ -369,7 +369,7 @@ static void hf_handle_upload(int fd, const char* path, const char* headers,
 static void hf_handle_conn(int fd)
 {
     char headers[16384];
-    int hlen = hf_read_headers(fd, headers, sizeof(headers));
+    size_t total_read = 0;\n    int hlen = hf_read_headers(fd, headers, sizeof(headers), &total_read);
     if (hlen <= 0) {
         close(fd);
         return;
