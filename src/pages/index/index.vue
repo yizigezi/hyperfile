@@ -9,6 +9,7 @@
             <div class="card">
               <FlQrcode v-if="running && qrUrl" :text="qrUrl" :size="142" />
               <text class="addr" v-if="running">{{ qrUrl }}</text>
+              <text class="addr" v-if="running && updateToken">更新验证码：{{ updateToken }}</text>
               <text class="addr" v-else>目标目录 {{ uploadDir }}</text>
             </div>
             <div class="btn" @click="Toggle">
@@ -72,6 +73,7 @@ export default {
       initialized: false,
       ip: '',
       qrUrl: '',
+      updateToken: '',
       received: 0,
       files: [],
       toast: '',
@@ -96,6 +98,7 @@ export default {
         this.ip = st.ip || ''
         this.received = st.received || 0
         this.qrUrl = st.running && st.ip ? `http://${st.ip}:${st.port}/` : ''
+        this.updateToken = st.running ? await http.updateToken() : ''
       } catch (e) {
         this.showToast('状态获取失败')
       }
