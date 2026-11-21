@@ -161,7 +161,11 @@ int main(void)
     log_line("HyperFile updater started");
 
     int lock = open(LOCK_PATH, O_WRONLY | O_CREAT | O_EXCL, 0600);
-    if (lock < 0) return finish(12, "another update is already running");
+    if (lock < 0) {
+        log_line("another update is already running");
+        if (g_log) fclose(g_log);
+        return 12;
+    }
     close(lock);
 
     if (stat(PACKAGE_PATH, &package_stat) != 0 || !S_ISREG(package_stat.st_mode) ||
