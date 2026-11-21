@@ -79,50 +79,66 @@ static int regular_executable_candidate(const char *path)
  * Prefer the daemon next to this JSAPI module. If the loader does not expose
  * a usable module path, scan every installed app package and both A/B slots.
  */
+static void set_error(int error)
+{
+    errno = error ? error : EIO;
+}
+
+/*
+ * Search all app package slots deterministically. dladdr() is intentionally
+ * not trusted here: Falcon may return a loader alias rather than a filesystem
+ * path. Return a concrete source path or preserve the last useful error.
+ */
 static int daemon_path(char *out, size_t capacity)
 {
-    Dl_info info;
-    char candidate[PATH_MAX];
     const char *pkg_root = "/userdisk/miniapp/data/mini_app/pkg";
+    DIR *apps = opendir(pkg_root);
+    struct dirent *app;
+    int saw_slot = 0;
+    int saw_candidate = 0;
+    int last_error = ENOENT;
 
-    if (dladdr((void *)&daemon_path, &info) && info.dli_fname &&
-        strrchr(info.dli_fname, '/') != NULL) {
-        const char *slash = strrchr(info.dli_fname, '/');
-        size_t parent_len = (size_t)(slash - info.dli_fname);
-        if (parent_len + sizeof("/libhyperfile-httpd.so") <= sizeof(candidate)) {
-            memcpy(candidate, info.dli_fname, parent_len);
-            candidate[parent_len] = '\0';
-            strncat(candidate, "/libhyperfile-httpd.so",
-                    sizeof(candidate) - strlen(candidate) - 1);
-            if (regular_executable_candidate(candidate)) {
-                if (strlen(candidate) + 1 > capacity) { errno = ENAMETOOLONG; return -1; }
-                strcpy(out, candidate);
+    if (!apps) return -1;
+
+    while ((app = readdir(apps)) != NULL) {
+        const char *slots[] = { "a", "b" };
+        if (app->d_name[0] == '.') continue;
+
+        for (size_t i = 0; i < sizeof(slots) / sizeof(slots[0]); ++i) {
+            char candidate[PATH_MAX];
+            struct stat st;
+            int length = snprintf(candidate, sizeof(candidate),
+                "%s/%s/%s/libs/libhyperfile-httpd.so",
+                pkg_root, app->d_name, slots[i]);
+
+            if (length < 0 || length >= (int)sizeof(candidate)) continue;
+            if (stat(candidate, &st) == 0) {
+                saw_slot = 1;
+                if (!S_ISREG(st.st_mode)) {
+                    last_error = EINVAL;
+                    continue;
+                }
+                saw_candidate = 1;
+                if (access(candidate, R_OK) != 0) {
+                    last_error = errno;
+                    continue;
+                }
+                if ((size_t)length + 1 > capacity) {
+                    closedir(apps);
+                    errno = ENAMETOOLONG;
+                    return -1;
+                }
+                memcpy(out, candidate, (size_t)length + 1);
+                closedir(apps);
                 return 0;
             }
-        }
-    }
-
-    DIR *apps = opendir(pkg_root);
-    if (!apps) return -1;
-    struct dirent *app;
-    while ((app = readdir(apps)) != NULL) {
-        if (app->d_name[0] == '.') continue;
-        const char *slots[] = { "a", "b" };
-        for (size_t i = 0; i < sizeof(slots) / sizeof(slots[0]); ++i) {
-            if (snprintf(candidate, sizeof(candidate), "%s/%s/%s/libs/libhyperfile-httpd.so",
-                         pkg_root, app->d_name, slots[i]) >= (int)sizeof(candidate))
-                continue;
-            if (!regular_executable_candidate(candidate)) continue;
-            if (strlen(candidate) + 1 > capacity) {
-                closedir(apps); errno = ENAMETOOLONG; return -1;
-            }
-            strcpy(out, candidate);
-            closedir(apps);
-            return 0;
+            if (errno != ENOENT && errno != ENOTDIR) last_error = errno;
         }
     }
     closedir(apps);
-    errno = ENOENT;
+
+    if (!saw_candidate && !saw_slot && last_error == ENOENT) errno = ENOENT;
+    else errno = last_error;
     return -1;
 }
 
@@ -210,18 +226,36 @@ static int initialized_daemon_path(char *executable, size_t capacity)
     return 0;
 }
 
-static int initialize_daemon(void)
+static int initialize_daemon(char *stage, size_t stage_capacity, char *source_out, size_t source_capacity)
 {
     char source[PATH_MAX], executable[PATH_MAX];
     struct stat st;
+
+    if (stage && stage_capacity) snprintf(stage, stage_capacity, "create-service-directory");
     if (mkdir(SERVICE_DIR, 0755) != 0 && errno != EEXIST) return -1;
+
+    if (stage && stage_capacity) snprintf(stage, stage_capacity, "search-a-b-slots");
     if (daemon_path(source, sizeof(source)) != 0) return -1;
+    if (source_out && source_capacity) snprintf(source_out, source_capacity, "%s", source);
+
+    if (stage && stage_capacity) snprintf(stage, stage_capacity, "build-destination-path");
     if (snprintf(executable, sizeof(executable), "%s/hyperfile-httpd", SERVICE_DIR) >= (int)sizeof(executable)) {
         errno = ENAMETOOLONG;
         return -1;
     }
+
+    if (stage && stage_capacity) snprintf(stage, stage_capacity, "copy-daemon");
     if (copy_daemon(source, executable) != 0) return -1;
-    if (stat(executable, &st) != 0 || !S_ISREG(st.st_mode) || access(executable, X_OK) != 0) return -1;
+
+    if (stage && stage_capacity) snprintf(stage, stage_capacity, "verify-executable");
+    if (stat(executable, &st) != 0) return -1;
+    if (!S_ISREG(st.st_mode)) {
+        errno = EINVAL;
+        return -1;
+    }
+    if (access(executable, X_OK) != 0) return -1;
+
+    if (stage && stage_capacity) snprintf(stage, stage_capacity, "complete");
     return 0;
 }
 
@@ -231,7 +265,7 @@ static int launch_daemon(int port, const char *dir)
     pid_t pid;
     int logfd;
 
-    if (initialized_daemon_path(executable, sizeof(executable)) != 0) return -1;
+    if (initialized_daemon_path(executable, sizeof(executable)) != 0) { errno = ENOENT; return -1; }
 
     snprintf(port_text, sizeof(port_text), "%d", port);
     pid = fork();
@@ -256,16 +290,25 @@ static int launch_daemon(int port, const char *dir)
 }
 static JSValue js_initialize(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv)
 {
-    char result[256];
+    char result[256], stage[64] = "begin", source[PATH_MAX] = "";
+    int error;
     (void)this_val; (void)argc; (void)argv;
-    if (initialize_daemon() != 0) {
-        char message[256];
-        snprintf(message, sizeof(message), "httpd initialization failed (errno=%d)", errno);
+
+    if (initialize_daemon(stage, sizeof(stage), source, sizeof(source)) != 0) {
+        char message[512];
+        error = errno;
+        snprintf(message, sizeof(message),
+                 "httpd initialization failed: stage=%s errno=%d (%s) source=%s",
+                 stage, error, strerror(error), source[0] ? source : "(not found)");
         return rejected(ctx, message);
     }
-    snprintf(result, sizeof(result), "{\"ok\":true,\"initialized\":true,\"path\":\"%s/hyperfile-httpd\"}", SERVICE_DIR);
+
+    snprintf(result, sizeof(result),
+             "{\"ok\":true,\"initialized\":true,\"path\":\"%s/hyperfile-httpd\"}",
+             SERVICE_DIR);
     return resolved(ctx, parse_json(ctx, result));
 }
+
 static JSValue js_start(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv)
 {
     int port = DEFAULT_PORT;
