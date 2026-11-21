@@ -126,7 +126,7 @@ static int daemon_path(char *out, size_t capacity)
 
                 /* The installer appends a generated suffix to the library name. */
                 if (strncmp(entry->d_name, prefix, prefix_len) != 0) continue;
-                if (entry->d_name[prefix_len] == '\\0') continue;
+                if (entry->d_name[prefix_len] == '\0') continue;
 
                 length = snprintf(candidate, sizeof(candidate), "%s/%s",
                                   libs_dir, entry->d_name);
