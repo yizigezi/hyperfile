@@ -19,6 +19,9 @@
             <div class="adb-btn" @click="EnableADB">
               <text class="adb-btn-text">打开 ADB</text>
             </div>
+            <div class="adb-btn" @click="RunDiagnostics">
+              <text class="adb-btn-text">启动诊断</text>
+            </div>
           </div>
         </scroll>
       </div>
@@ -39,6 +42,18 @@
     </div>
     <div class="toast" v-if="toast">
       <text class="toast-text">{{ toast }}</text>
+    </div>
+    <div class="diag-page" v-if="showDiagnostics">
+      <text class="setup-title">HTTP 服务启动诊断</text>
+      <scroll class="diag-scroll" scroll-y="true">
+        <div class="diag-row" v-for="line in diagnosticLines" :key="line.label">
+          <text class="diag-label">{{ line.label }}</text>
+          <text class="diag-value">{{ line.value }}</text>
+        </div>
+      </scroll>
+      <div class="setup-confirm" @click="CloseDiagnostics">
+        <text class="setup-confirm-text">关闭</text>
+      </div>
     </div>
     <div class="setup-page" v-if="showSetupConfirm">
       <text class="setup-title">首次配置 HTTP 服务</text>
@@ -70,6 +85,8 @@ export default {
     return {
       running: false,
       showSetupConfirm: false,
+      showDiagnostics: false,
+      diagnosticLines: [],
       initialized: false,
       ip: '',
       qrUrl: '',
@@ -135,6 +152,33 @@ export default {
         this.showToast('初始化失败：' + (e && e.message ? e.message : e))
       }
     },
+    async RunDiagnostics() {
+      try {
+        const http = await getHttp()
+        const d = await http.diagnose()
+        const yesNo = (v) => v === true ? '是' : (v === false ? '否' : '未知')
+        const noexec = d.noexec === 1 ? '是' : (d.noexec === 0 ? '否' : '无法读取')
+        this.diagnosticLines = [
+          { label: '执行文件', value: d.path || '' },
+          { label: '文件存在', value: yesNo(d.exists) },
+          { label: '普通文件', value: yesNo(d.regularFile) },
+          { label: '可执行', value: yesNo(d.executable) },
+          { label: '权限', value: d.mode ? '0' + Number(d.mode).toString(8) : '未知' },
+          { label: '文件大小', value: String(d.size || 0) + ' bytes' },
+          { label: '检查错误', value: String(d.errno || 0) + ' / ' + (d.error || '') },
+          { label: '挂载点', value: d.mountPoint || '未知' },
+          { label: '挂载参数', value: d.mountOptions || '未知' },
+          { label: 'noexec', value: noexec },
+          { label: 'httpd.log', value: d.log || '空' }
+        ]
+        this.showDiagnostics = true
+      } catch (e) {
+        this.showToast('诊断失败：' + (e && e.message ? e.message : e))
+      }
+    },
+    CloseDiagnostics() {
+      this.showDiagnostics = false
+    },
     async EnableADB() {
       try {
         const http = await getHttp()
@@ -178,6 +222,7 @@ export default {
         this.showToast(this.running ? 'HTTP 服务已启动' : '启动失败')
       } catch (e) {
         this.showToast('启动失败：' + (e && e.message ? e.message : e))
+        await this.RunDiagnostics()
       }
     }
   }
@@ -265,6 +310,15 @@ export default {
 .bottom-space { height: 12px; }
 .toast { position: absolute; left: 20%; right: 20%; bottom: 12px; padding: 9px; background-color: #333333; border-radius: 8px; align-items: center; }
 .toast-text { color: #ffffff; font-size: 13px; }
+.diag-page {
+  position: absolute; left: 0; right: 0; top: 0; bottom: 0; z-index: 21;
+  background-color: #1c1c1c; padding: 16px 20px;
+  flex-direction: column; align-items: center;
+}
+.diag-scroll { width: 100%; flex: 1; margin-top: 8px; margin-bottom: 12px; }
+.diag-row { width: 100%; padding: 8px 4px; border-bottom-width: 1px; border-bottom-color: #333333; }
+.diag-label { font-size: 13px; color: #ff7da8; margin-bottom: 4px; }
+.diag-value { font-size: 13px; color: #dddddd; }
 .setup-page {
   position: absolute; left: 0; right: 0; top: 0; bottom: 0; z-index: 20;
   background-color: #1c1c1c; padding: 20px 26px;
