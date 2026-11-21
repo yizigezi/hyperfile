@@ -481,13 +481,13 @@ static void hf_handle_conn(int fd)
         size_t n = strlen(decoded);
         if (n < 4 || strcasecmp(decoded + n - 4, ".amr") != 0 ||
             hf_fm_resolve_file(g_status.dir, decoded, filepath, sizeof(filepath)) != 0) {
-            hf_respond_json(fd, 400, "{\\"ok\\":false,\\"error\\":\\"only regular .amr packages can be installed\\"}");
+            hf_respond_json(fd, 400, "{\"ok\":false,\"error\":\"only regular .amr packages can be installed\"}");
         } else if (hf_launch_amr_install(filepath) != 0) {
             char msg[256];
-            snprintf(msg, sizeof(msg), "{\\"ok\\":false,\\"error\\":\\"cannot execute miniapp_cli (errno %d)\\"}", errno);
+            snprintf(msg, sizeof(msg), "{\"ok\":false,\"error\":\"cannot execute miniapp_cli (errno %d)\"}", errno);
             hf_respond_json(fd, 500, msg);
         } else {
-            hf_respond_json(fd, 200, "{\\"ok\\":true,\\"started\\":true}");
+            hf_respond_json(fd, 200, "{\"ok\":true,\"started\":true}");
         }
     } else if (strcmp(method, "GET") == 0 && strncmp(path, "/status", 7) == 0) {
         char json[1280];
