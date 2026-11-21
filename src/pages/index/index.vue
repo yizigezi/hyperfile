@@ -35,13 +35,27 @@
       <text class="setup-title">首次配置 HTTP 服务</text>
       <text class="setup-desc">HyperFile 需要启动独立的 httpd 服务，才能让其他设备通过浏览器访问并上传文件。</text>
       <text class="setup-path">服务程序将复制到：/userdisk/HyperFile/hyperfile-httpd</text>
-      <text class="setup-desc">确认后，应用会检查 A/B 槽中的 httpd 文件，复制到上述目录并设置执行权限，然后启动服务。</text>
+      <text class="setup-desc">此步骤只负责查找程序、复制文件和设置执行权限，不会启动 HTTP 服务。初始化完成后，你可以在下一步单独启动。</text>
       <div class="setup-actions">
         <div class="setup-cancel" @click="CancelSetup">
           <text class="setup-cancel-text">暂不配置</text>
         </div>
         <div class="setup-confirm" @click="ConfirmSetup">
-          <text class="setup-confirm-text">确认并启动</text>
+          <text class="setup-confirm-text">开始初始化</text>
+        </div>
+      </div>
+    </div>
+
+    <div class="setup-page" v-if="showStartConfirm">
+      <text class="setup-title">httpd 已完成初始化</text>
+      <text class="setup-desc">程序已复制到 /userdisk/HyperFile/hyperfile-httpd，执行权限检查通过。</text>
+      <text class="setup-desc">初始化和启动是两个独立步骤。现在可以启动 HTTP 服务，之后也可以随时停止。</text>
+      <div class="setup-actions">
+        <div class="setup-cancel" @click="CancelStart">
+          <text class="setup-cancel-text">稍后启动</text>
+        </div>
+        <div class="setup-confirm" @click="StartHttpd">
+          <text class="setup-confirm-text">启动服务</text>
         </div>
       </div>
     </div>
@@ -65,7 +79,7 @@ export default {
   data() {
     return {
       running: false,
-      showSetupConfirm: false,
+      showSetupConfirm: false,\n      showStartConfirm: false,\n      initialized: false,
       ip: '',
       qrUrl: '',
       received: 0,
@@ -140,7 +154,7 @@ export default {
         const http = await getHttp()
         let st = await http.start(PORT, UPLOAD_DIR)
         if (!st.running && st.starting) {
-          this.showToast('正在配置并启动 httpd…')
+          this.showToast('正在启动 HTTP 服务…')
           st = await this.waitForServer()
         }
         this.running = !!st.running
