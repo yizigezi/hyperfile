@@ -358,6 +358,20 @@ static JSValue js_enable_adb(JSContext *ctx, JSValueConst this_val, int argc, JS
     return resolved(ctx, parse_json(ctx, "{\\"ok\\":true,\\"enabled\\":true}"));
 }
 
+static JSValue js_update_token(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv)
+{
+    char token[32] = "";
+    FILE *fp;
+    (void)this_val; (void)argc; (void)argv;
+    fp = fopen("/tmp/hyperfile-update.token", "r");
+    if (fp) {
+        (void)fgets(token, sizeof(token), fp);
+        fclose(fp);
+        token[strcspn(token, "\\r\\n")] = 0;
+    }
+    return resolved(ctx, JS_NewString(ctx, token));
+}
+
 static JSValue js_start(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv)
 {
     int port = DEFAULT_PORT;
@@ -409,6 +423,7 @@ static int module_init(JSContext *ctx, JSModuleDef *m)
     JSValue api = JS_NewObject(ctx);
     JS_SetPropertyStr(ctx, api, "initialize", JS_NewCFunction(ctx, js_initialize, "initialize", 0));
     JS_SetPropertyStr(ctx, api, "enableAdb", JS_NewCFunction(ctx, js_enable_adb, "enableAdb", 0));
+    JS_SetPropertyStr(ctx, api, "updateToken", JS_NewCFunction(ctx, js_update_token, "updateToken", 0));
     JS_SetPropertyStr(ctx, api, "start", JS_NewCFunction(ctx, js_start, "start", 2));
     JS_SetPropertyStr(ctx, api, "stop", JS_NewCFunction(ctx, js_stop, "stop", 0));
     JS_SetPropertyStr(ctx, api, "status", JS_NewCFunction(ctx, js_status, "status", 0));
