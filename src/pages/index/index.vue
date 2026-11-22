@@ -138,7 +138,7 @@
               <text class="setting-chevron">查看</text>
             </div>
           </div>
-          <text class="settings-note">蓝牙共享和更多文件预览功能将在后续版本加入。</text>
+          <text class="settings-note">更多文件类型预览将在后续版本加入。</text>
           <text class="settings-version">HyperFile · 0.1.0</text>
         </div>
       </scroll>
