@@ -337,26 +337,66 @@ failed:
 
 static int spawn_detached_worker(void (*worker)(void))
 {
-    pid_t first = fork();
-    int status = 0;
-    if (first < 0) return -1;
+    int pipefd[2], child_error = 0, polled;
+    pid_t first;
+    struct pollfd pfd;
+    ssize_t n;
+
+    if (pipe(pipefd) != 0) return -1;
+    first = fork();
+    if (first < 0) {
+        int saved = errno;
+        close(pipefd[0]); close(pipefd[1]);
+        errno = saved;
+        return -1;
+    }
     if (first == 0) {
         pid_t second;
-        (void)setsid();
+        close(pipefd[0]);
+        if (setsid() < 0) {
+            child_error = errno;
+            (void)write(pipefd[1], &child_error, sizeof(child_error));
+            _exit(126);
+        }
         second = fork();
-        if (second < 0) _exit(126);
-        if (second > 0) _exit(0);
+        if (second < 0) {
+            child_error = errno;
+            (void)write(pipefd[1], &child_error, sizeof(child_error));
+            _exit(126);
+        }
+        if (second > 0) {
+            child_error = 0;
+            (void)write(pipefd[1], &child_error, sizeof(child_error));
+            _exit(0);
+        }
+        close(pipefd[1]);
         worker();
         _exit(0);
     }
-    while (waitpid(first, &status, 0) < 0) {
-        if (errno == EINTR) continue;
+
+    close(pipefd[1]);
+    pfd.fd = pipefd[0];
+    pfd.events = POLLIN | POLLHUP;
+    pfd.revents = 0;
+    do { polled = poll(&pfd, 1, CONTROL_TIMEOUT_MS); }
+    while (polled < 0 && errno == EINTR);
+    if (polled <= 0) {
+        int saved = polled == 0 ? ETIMEDOUT : errno;
+        close(pipefd[0]);
+        errno = saved;
         return -1;
     }
-    if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
-        errno = ECHILD;
+    do { n = read(pipefd[0], &child_error, sizeof(child_error)); }
+    while (n < 0 && errno == EINTR);
+    if (n < 0) {
+        int saved = errno;
+        close(pipefd[0]);
+        errno = saved;
         return -1;
     }
+    close(pipefd[0]);
+    if (n != (ssize_t)sizeof(child_error)) { errno = EIO; return -1; }
+    if (child_error != 0) { errno = child_error; return -1; }
     return 0;
 }
 
@@ -381,7 +421,7 @@ static void initialize_worker_entry(void)
 static int launch_daemon(int port, const char *directory)
 {
     pid_t first;
-    int status = 0, pipefd[2], child_error = 0, polled;
+    int pipefd[2], child_error = 0, polled;
     char port_text[16];
     struct pollfd pfd;
     ssize_t received;
@@ -390,8 +430,7 @@ static int launch_daemon(int port, const char *directory)
     if (pipe(pipefd) != 0) return -1;
     if (fcntl(pipefd[1], F_SETFD, FD_CLOEXEC) != 0) {
         int saved = errno;
-        close(pipefd[0]);
-        close(pipefd[1]);
+        close(pipefd[0]); close(pipefd[1]);
         errno = saved;
         return -1;
     }
@@ -400,8 +439,7 @@ static int launch_daemon(int port, const char *directory)
     first = fork();
     if (first < 0) {
         int saved = errno;
-        close(pipefd[0]);
-        close(pipefd[1]);
+        close(pipefd[0]); close(pipefd[1]);
         errno = saved;
         return -1;
     }
@@ -447,15 +485,6 @@ static int launch_daemon(int port, const char *directory)
     }
 
     close(pipefd[1]);
-    while (waitpid(first, &status, 0) < 0) {
-        if (errno == EINTR) continue;
-        {
-            int saved = errno;
-            close(pipefd[0]);
-            errno = saved;
-            return -1;
-        }
-    }
     pfd.fd = pipefd[0];
     pfd.events = POLLIN | POLLHUP;
     pfd.revents = 0;
@@ -467,7 +496,6 @@ static int launch_daemon(int port, const char *directory)
         errno = saved;
         return -1;
     }
-
     if (pfd.revents & POLLIN) {
         do { received = read(pipefd[0], &child_error, sizeof(child_error)); }
         while (received < 0 && errno == EINTR);
@@ -482,23 +510,13 @@ static int launch_daemon(int port, const char *directory)
             errno = child_error;
             return -1;
         }
-        if (received != 0) {
-            close(pipefd[0]);
-            errno = EIO;
-            return -1;
-        }
+        if (received != 0) { close(pipefd[0]); errno = EIO; return -1; }
     } else if (!(pfd.revents & POLLHUP)) {
         close(pipefd[0]);
         errno = EIO;
         return -1;
     }
-
-    /* POLLHUP means exec closed the FD_CLOEXEC writer: exec succeeded. */
     close(pipefd[0]);
-    if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
-        errno = ECHILD;
-        return -1;
-    }
     return 0;
 }
 
