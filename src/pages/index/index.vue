@@ -320,7 +320,8 @@ export default {
     },
     goParent() {
       if (this.currentPath === '/') return
-      const path = this.currentPath.replace(/\\/+$/, '')
+      let path = this.currentPath
+      while (path.length > 1 && path.charAt(path.length - 1) === '/') path = path.slice(0, -1)
       const index = path.lastIndexOf('/')
       this.currentPath = index <= 0 ? '/' : path.slice(0, index)
       this.refreshLocal()
