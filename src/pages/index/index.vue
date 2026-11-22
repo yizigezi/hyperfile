@@ -76,7 +76,7 @@
             <text class="share-muted" v-if="!running">服务尚未启动</text>
           </div>
           <div :class="running ? 'primary-action action-stop' : 'primary-action'" @click="Toggle">
-            <text class="primary-action-label">{{ running ? '停止共享服务' : (initialized ? '启动共享服务' : '初始化并启动') }}</text>
+            <text :class="running ? 'primary-action-label-stop' : 'primary-action-label'">{{ running ? '停止共享服务' : (initialized ? '启动共享服务' : '初始化并启动') }}</text>
           </div>
           <text class="share-footnote">网页端提供文件上传、下载、复制、删除和 AMR 安装</text>
         </div>
