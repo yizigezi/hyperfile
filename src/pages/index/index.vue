@@ -145,7 +145,21 @@ export default {
       this.showSetupConfirm = false
       try {
         const http = await getHttp()
-        await http.initialize()
+        const result = await http.initialize()
+        if (result && result.initializing) {
+          this.showToast('正在后台初始化 HTTP 服务…')
+          let completed = false
+          for (let i = 0; i < 120; i++) {
+            await new Promise((resolve) => this.$page.setTimeout(resolve, 250))
+            const state = await http.status()
+            if (state.initialized) {
+              completed = true
+              break
+            }
+            if (state.initError) throw new Error(state.initError)
+          }
+          if (!completed) throw new Error('初始化超时，请检查 /userdisk/HyperFile/init.status 和 init.log')
+        }
         this.initialized = true
         this.showToast('初始化完成，再次点击启动即可运行')
       } catch (e) {
