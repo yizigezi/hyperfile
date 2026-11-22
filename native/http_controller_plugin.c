@@ -376,12 +376,20 @@ static void initialize_worker_entry(void)
 static int launch_daemon(int port, const char *directory)
 {
     pid_t first;
-    int status = 0, pipefd[2], child_error = 0;
-    ssize_t received;
+    int status = 0, pipefd[2], child_error = 0, polled;
     char port_text[16];
+    struct pollfd pfd;
+    ssize_t received;
 
     if (validate_executable(HTTPD_PATH) != 0) return -1;
     if (pipe(pipefd) != 0) return -1;
+    if (fcntl(pipefd[1], F_SETFD, FD_CLOEXEC) != 0) {
+        int saved = errno;
+        close(pipefd[0]);
+        close(pipefd[1]);
+        errno = saved;
+        return -1;
+    }
     snprintf(port_text, sizeof(port_text), "%d", port);
 
     first = fork();
@@ -408,8 +416,6 @@ static int launch_daemon(int port, const char *directory)
         }
         if (second > 0) _exit(0);
 
-        /* The daemon must not keep the launcher error pipe open. */
-        close(pipefd[1]);
         {
             int logfd = open(HTTPD_LOG, O_WRONLY | O_CREAT | O_APPEND, 0644);
             if (logfd >= 0) {
@@ -427,12 +433,11 @@ static int launch_daemon(int port, const char *directory)
         }
         close(STDIN_FILENO);
         execl(HTTPD_PATH, HTTPD_PATH, port_text, directory, (char *)NULL);
-        {
-            int e = errno;
-            dprintf(STDERR_FILENO,
-                    "[controller] exec %s failed: errno=%d (%s)\n",
-                    HTTPD_PATH, e, strerror(e));
-        }
+        child_error = errno;
+        dprintf(STDERR_FILENO,
+                "[controller] exec %s failed: errno=%d (%s)\n",
+                HTTPD_PATH, child_error, strerror(child_error));
+        (void)write(pipefd[1], &child_error, sizeof(child_error));
         _exit(127);
     }
 
@@ -446,23 +451,51 @@ static int launch_daemon(int port, const char *directory)
             return -1;
         }
     }
-    do { received = read(pipefd[0], &child_error, sizeof(child_error)); }
-    while (received < 0 && errno == EINTR);
-    if (received < 0) {
-        int saved = errno;
+    if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
+        close(pipefd[0]);
+        errno = ECHILD;
+        return -1;
+    }
+
+    pfd.fd = pipefd[0];
+    pfd.events = POLLIN | POLLHUP;
+    pfd.revents = 0;
+    do { polled = poll(&pfd, 1, CONTROL_TIMEOUT_MS); }
+    while (polled < 0 && errno == EINTR);
+    if (polled <= 0) {
+        int saved = polled == 0 ? ETIMEDOUT : errno;
         close(pipefd[0]);
         errno = saved;
         return -1;
     }
+
+    if (pfd.revents & POLLIN) {
+        do { received = read(pipefd[0], &child_error, sizeof(child_error)); }
+        while (received < 0 && errno == EINTR);
+        if (received < 0) {
+            int saved = errno;
+            close(pipefd[0]);
+            errno = saved;
+            return -1;
+        }
+        if (received == (ssize_t)sizeof(child_error)) {
+            close(pipefd[0]);
+            errno = child_error;
+            return -1;
+        }
+        if (received != 0) {
+            close(pipefd[0]);
+            errno = EIO;
+            return -1;
+        }
+    } else if (!(pfd.revents & POLLHUP)) {
+        close(pipefd[0]);
+        errno = EIO;
+        return -1;
+    }
+
+    /* POLLHUP means exec closed the FD_CLOEXEC writer: exec succeeded. */
     close(pipefd[0]);
-    if (received == (ssize_t)sizeof(child_error)) {
-        errno = child_error;
-        return -1;
-    }
-    if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
-        errno = ECHILD;
-        return -1;
-    }
     return 0;
 }
 
