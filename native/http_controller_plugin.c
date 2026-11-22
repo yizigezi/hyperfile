@@ -376,26 +376,54 @@ static void initialize_worker_entry(void)
 static int launch_daemon(int port, const char *directory)
 {
     pid_t first;
-    int status = 0;
+    int status = 0, pipefd[2], child_error = 0;
+    ssize_t received;
     char port_text[16];
 
     if (validate_executable(HTTPD_PATH) != 0) return -1;
+    if (pipe(pipefd) != 0) return -1;
     snprintf(port_text, sizeof(port_text), "%d", port);
 
     first = fork();
-    if (first < 0) return -1;
+    if (first < 0) {
+        int saved = errno;
+        close(pipefd[0]);
+        close(pipefd[1]);
+        errno = saved;
+        return -1;
+    }
     if (first == 0) {
         pid_t second;
-        (void)setsid();
+        close(pipefd[0]);
+        if (setsid() < 0) {
+            child_error = errno;
+            (void)write(pipefd[1], &child_error, sizeof(child_error));
+            _exit(126);
+        }
         second = fork();
-        if (second < 0) _exit(126);
+        if (second < 0) {
+            child_error = errno;
+            (void)write(pipefd[1], &child_error, sizeof(child_error));
+            _exit(126);
+        }
         if (second > 0) _exit(0);
 
-        int logfd = open(HTTPD_LOG, O_WRONLY | O_CREAT | O_APPEND, 0644);
-        if (logfd >= 0) {
-            (void)dup2(logfd, STDOUT_FILENO);
-            (void)dup2(logfd, STDERR_FILENO);
-            if (logfd > STDERR_FILENO) close(logfd);
+        /* The daemon must not keep the launcher error pipe open. */
+        close(pipefd[1]);
+        {
+            int logfd = open(HTTPD_LOG, O_WRONLY | O_CREAT | O_APPEND, 0644);
+            if (logfd >= 0) {
+                (void)dup2(logfd, STDOUT_FILENO);
+                (void)dup2(logfd, STDERR_FILENO);
+                if (logfd > STDERR_FILENO) close(logfd);
+            } else {
+                int nullfd = open("/dev/null", O_WRONLY);
+                if (nullfd >= 0) {
+                    (void)dup2(nullfd, STDOUT_FILENO);
+                    (void)dup2(nullfd, STDERR_FILENO);
+                    if (nullfd > STDERR_FILENO) close(nullfd);
+                }
+            }
         }
         close(STDIN_FILENO);
         execl(HTTPD_PATH, HTTPD_PATH, port_text, directory, (char *)NULL);
@@ -408,8 +436,27 @@ static int launch_daemon(int port, const char *directory)
         _exit(127);
     }
 
+    close(pipefd[1]);
     while (waitpid(first, &status, 0) < 0) {
         if (errno == EINTR) continue;
+        {
+            int saved = errno;
+            close(pipefd[0]);
+            errno = saved;
+            return -1;
+        }
+    }
+    do { received = read(pipefd[0], &child_error, sizeof(child_error)); }
+    while (received < 0 && errno == EINTR);
+    if (received < 0) {
+        int saved = errno;
+        close(pipefd[0]);
+        errno = saved;
+        return -1;
+    }
+    close(pipefd[0]);
+    if (received == (ssize_t)sizeof(child_error)) {
+        errno = child_error;
         return -1;
     }
     if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
@@ -486,7 +533,11 @@ static int control_request(const char *command, char *response, size_t capacity)
     {
         size_t sent = 0;
         while (sent < length) {
-            n = send(fd, command + sent, length - sent, MSG_DONTWAIT);
+            n = send(fd, command + sent, length - sent, MSG_DONTWAIT
+#ifdef MSG_NOSIGNAL
+                    | MSG_NOSIGNAL
+#endif
+                    );
             if (n < 0 && errno == EINTR) continue;
             if (n < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
                 struct pollfd pfd = { fd, POLLOUT, 0 };
