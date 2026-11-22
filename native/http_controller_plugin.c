@@ -282,11 +282,16 @@ static int validate_executable(const char *path)
     return 0;
 }
 
+static int validate_installation(void)
+{
+    if (validate_executable(HTTPD_PATH) != 0) return -1;
+    if (validate_executable(UPDATER_PATH) != 0) return -1;
+    return 0;
+}
+
 static int initialized(void)
 {
-    if (validate_executable(HTTPD_PATH) != 0) return 0;
-    if (validate_executable(UPDATER_PATH) != 0) return 0;
-    return 1;
+    return validate_installation() == 0;
 }
 
 /* ---------- Detached initialization worker ---------- */
@@ -722,7 +727,7 @@ static JSValue js_status(JSContext *ctx, JSValueConst this_val,
                          int argc, JSValueConst *argv)
 {
     char response[1600], state[512] = "";
-    int control_error = 0;
+    int control_error = 0, init_error = 0, init_result;
     (void)this_val; (void)argc; (void)argv;
 
     if (control_request("STATUS", response, sizeof(response)) == 0) {
@@ -736,18 +741,22 @@ static JSValue js_status(JSContext *ctx, JSValueConst this_val,
     read_tail(INIT_STATE, state, sizeof(state));
     {
         char json[1024];
-        int is_ready = initialized();
+        int is_ready;
+        const char *init_message;
+        init_result = validate_installation();
+        is_ready = init_result == 0;
+        if (!is_ready) init_error = errno;
         int is_initializing = strncmp(state, "running\n", 8) == 0;
-        const char *init_error = strncmp(state, "error\n", 6) == 0
-                               ? "初始化失败，详情见 /userdisk/HyperFile/init.status"
-                               : "";
+        init_message = strncmp(state, "error\n", 6) == 0
+                     ? "初始化失败，详情见 /userdisk/HyperFile/init.status"
+                     : "";
         snprintf(json, sizeof(json),
                  "{\"ok\":true,\"running\":false,\"initialized\":%s,"
                  "\"initializing\":%s,\"initError\":\"%s\","
-                 "\"controlErrno\":%d}",
+                 "\"initErrno\":%d,\"controlErrno\":%d}",
                  is_ready ? "true" : "false",
                  is_initializing ? "true" : "false",
-                 init_error, control_error);
+                 init_message, init_error, control_error);
         return promise_json(ctx, json);
     }
 }
@@ -825,9 +834,10 @@ static JSValue js_start(JSContext *ctx, JSValueConst this_val,
         return promise_errno(ctx, "control STATUS failed", error);
     }
 
-    if (!initialized()) {
+    if (validate_executable(HTTPD_PATH) != 0) {
+        error = errno;
         if (argc > 1) JS_FreeCString(ctx, directory);
-        return promise_error(ctx, "HTTP 服务尚未初始化，或初始化未完成");
+        return promise_errno(ctx, "validate HTTP daemon executable failed", error);
     }
 
     if (launch_daemon(port, directory) != 0) {
