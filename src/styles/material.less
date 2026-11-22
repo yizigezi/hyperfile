@@ -1,0 +1,246 @@
+// Material 3 Expressive visual language adapted from readex-nt PR #1.
+// X5 landscape viewport: 800 x 254. Icons are intentionally omitted.
+@primary: #c6a8ff;
+@on-primary: #32105f;
+@primary-container: #4b2b83;
+@on-primary-container: #f0e5ff;
+@secondary-container: #494154;
+@surface: #101116;
+@surface-container-low: #171820;
+@surface-container: #20212b;
+@surface-container-high: #2a2b36;
+@surface-container-highest: #353640;
+@on-surface: #f0edf6;
+@on-surface-variant: #c7c1d2;
+@outline-variant: #494653;
+@error: #ffb4ab;
+
+.app-page {
+  width: 100%;
+  height: 100%;
+  flex-direction: column;
+  background-color: @surface;
+  position: relative;
+}
+.app-topbar {
+  width: 100%;
+  height: 54px;
+  padding: 5px 16px;
+  flex-direction: row;
+  align-items: center;
+}
+.app-title {
+  color: @on-surface;
+  font-size: 19px;
+  font-weight: bold;
+  margin-right: 18px;
+}
+.nav-segment {
+  height: 38px;
+  padding: 3px;
+  border-radius: 19px;
+  flex-direction: row;
+  align-items: center;
+  background-color: @surface-container;
+}
+.nav-item {
+  height: 32px;
+  min-width: 82px;
+  padding: 0 14px;
+  margin-right: 3px;
+  border-radius: 16px;
+  align-items: center;
+  justify-content: center;
+}
+.nav-item-active { background-color: @primary-container; }
+.nav-label { color: @on-surface-variant; font-size: 13px; }
+.nav-label-active { color: @on-primary-container; font-size: 13px; font-weight: bold; }
+.top-spacer { flex: 1; }
+.top-action {
+  height: 36px;
+  min-width: 58px;
+  padding: 0 14px;
+  border-radius: 18px;
+  align-items: center;
+  justify-content: center;
+  background-color: @surface-container-high;
+}
+.top-action-label { color: @on-surface; font-size: 13px; }
+.page-body { flex: 1; width: 100%; min-height: 0; }
+.local-toolbar {
+  height: 38px;
+  padding: 0 18px;
+  flex-direction: row;
+  align-items: center;
+}
+.toolbar-action {
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 15px;
+  justify-content: center;
+  background-color: @surface-container-high;
+  margin-right: 10px;
+}
+.toolbar-action-text { color: @on-surface; font-size: 12px; }
+.path-label {
+  flex: 1;
+  color: @on-surface-variant;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  max-height: 17px;
+}
+.entry-count { color: @on-surface-variant; font-size: 11px; margin-left: 8px; }
+.local-list-wrap { flex: 1; min-height: 0; padding: 0 16px; }
+.local-list { width: 100%; height: 100%; }
+.entry-list { width: 100%; flex-direction: column; }
+.entry-row {
+  width: 100%;
+  height: 48px;
+  padding: 4px 9px;
+  margin-bottom: 4px;
+  border-radius: 14px;
+  flex-direction: row;
+  align-items: center;
+  background-color: @surface-container;
+}
+.entry-type {
+  width: 48px;
+  height: 32px;
+  border-radius: 10px;
+  align-items: center;
+  justify-content: center;
+  background-color: @primary-container;
+}
+.entry-type-folder { background-color: @secondary-container; }
+.entry-type-label { color: @on-primary-container; font-size: 9px; font-weight: bold; }
+.entry-main { flex: 1; min-width: 0; margin-left: 10px; }
+.entry-name {
+  color: @on-surface;
+  font-size: 13px;
+  max-height: 18px;
+  text-overflow: ellipsis;
+}
+.entry-meta { color: @on-surface-variant; font-size: 10px; margin-top: 2px; }
+.entry-trailing {
+  height: 28px;
+  padding: 0 12px;
+  border-radius: 14px;
+  justify-content: center;
+  background-color: @primary-container;
+  margin-left: 8px;
+}
+.entry-action-label { color: @on-primary-container; font-size: 11px; font-weight: bold; }
+.local-footer { height: 22px; padding: 2px 18px 4px; }
+.footer-hint { color: @on-surface-variant; font-size: 10px; }
+.empty-state { width: 100%; height: 130px; align-items: center; justify-content: center; }
+.empty-text { color: @on-surface-variant; font-size: 13px; text-align: center; }
+.error-text { color: @error; font-size: 12px; text-align: center; }
+.share-layout { width: 100%; height: 100%; padding: 4px 18px 12px; flex-direction: row; }
+.share-main {
+  width: 42%;
+  padding: 2px 14px 0 0;
+  align-items: center;
+  border-right-width: 1px;
+  border-right-color: @outline-variant;
+}
+.section-heading { color: @on-surface; font-size: 16px; font-weight: bold; }
+.section-subtitle { color: @on-surface-variant; font-size: 10px; margin-top: 3px; text-align: center; }
+.share-card {
+  width: 92%;
+  min-height: 112px;
+  margin-top: 6px;
+  padding: 6px;
+  border-radius: 18px;
+  align-items: center;
+  justify-content: center;
+  background-color: @surface-container;
+}
+.share-address { color: @on-surface; font-size: 11px; margin-top: 3px; text-align: center; }
+.share-muted { color: @on-surface-variant; font-size: 10px; margin-top: 3px; }
+.primary-action {
+  height: 34px;
+  min-width: 142px;
+  padding: 0 18px;
+  margin-top: 7px;
+  border-radius: 17px;
+  align-items: center;
+  justify-content: center;
+  background-color: @primary;
+}
+.action-stop { background-color: @surface-container-highest; }
+.primary-action-label { color: @on-primary; font-size: 12px; font-weight: bold; }
+.action-stop .primary-action-label { color: @on-surface; }
+.share-footnote { color: @on-surface-variant; font-size: 9px; margin-top: 5px; }
+.share-side { flex: 1; min-width: 0; padding-left: 14px; flex-direction: column; }
+.side-heading-row { width: 100%; flex-direction: row; align-items: center; justify-content: space-between; }
+.side-heading { color: @on-surface; font-size: 14px; font-weight: bold; }
+.side-path { color: @on-surface-variant; font-size: 10px; }
+.shared-files { width: 100%; flex: 1; margin-top: 6px; }
+.shared-file-row { width: 100%; padding: 7px 9px; margin-bottom: 3px; border-radius: 10px; background-color: @surface-container; }
+.shared-file-name { color: @on-surface; font-size: 11px; }
+.shared-empty { padding: 18px 0; align-items: center; }
+.side-footnote { color: @on-surface-variant; font-size: 9px; margin-top: 4px; }
+.settings-scroll { width: 100%; height: 100%; }
+.settings-content { padding: 4px 20px 12px; }
+.settings-card { width: 100%; margin-top: 7px; padding: 2px 14px; border-radius: 18px; background-color: @surface-container; }
+.setting-line { min-height: 44px; flex-direction: row; align-items: center; justify-content: space-between; }
+.setting-copy { flex: 1; min-width: 0; }
+.setting-name { color: @on-surface; font-size: 12px; font-weight: bold; }
+.setting-description { color: @on-surface-variant; font-size: 10px; margin-top: 2px; }
+.setting-value { color: @on-surface-variant; font-size: 10px; margin-left: 10px; }
+.setting-divider { height: 1px; background-color: @outline-variant; }
+.settings-section-heading { margin-top: 12px; }
+.setting-button { min-height: 45px; flex-direction: row; align-items: center; justify-content: space-between; }
+.setting-chevron { color: @primary; font-size: 11px; margin-left: 12px; }
+.settings-note { color: @on-surface-variant; font-size: 10px; margin-top: 10px; }
+.settings-version { color: @on-surface-variant; font-size: 9px; margin-top: 4px; }
+.toast {
+  position: absolute;
+  left: 28%;
+  right: 28%;
+  bottom: 7px;
+  padding: 7px 12px;
+  border-radius: 12px;
+  align-items: center;
+  background-color: @surface-container-highest;
+}
+.toast-text { color: @on-surface; font-size: 11px; }
+.dialog-mask {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  z-index: 30;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(0, 0, 0, 0.55);
+}
+.dialog-card {
+  width: 390px;
+  padding: 18px;
+  border-radius: 24px;
+  background-color: @surface-container-high;
+}
+.dialog-title { color: @on-surface; font-size: 17px; font-weight: bold; margin-bottom: 8px; }
+.dialog-description { color: @on-surface-variant; font-size: 12px; line-height: 18px; }
+.dialog-path { color: @primary; font-size: 11px; margin-top: 8px; }
+.dialog-actions { width: 100%; margin-top: 14px; flex-direction: row; justify-content: flex-end; }
+.dialog-button {
+  height: 36px;
+  min-width: 72px;
+  padding: 0 14px;
+  margin-left: 8px;
+  border-radius: 18px;
+  align-items: center;
+  justify-content: center;
+  background-color: @surface-container-highest;
+}
+.dialog-button-primary { background-color: @primary; }
+.dialog-button-label { color: @on-surface; font-size: 12px; font-weight: bold; }
+.dialog-button-primary-label { color: @on-primary; }
+.diagnostics-card { height: 224px; }
+.diagnostics-scroll { width: 100%; flex: 1; }
+.diagnostic-row { padding: 5px 2px; border-bottom-width: 1px; border-bottom-color: @outline-variant; }
+.diagnostic-label { color: @primary; font-size: 10px; }
+.diagnostic-value { color: @on-surface; font-size: 10px; margin-top: 2px; }
