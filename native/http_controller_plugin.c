@@ -451,12 +451,6 @@ static int launch_daemon(int port, const char *directory)
             return -1;
         }
     }
-    if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
-        close(pipefd[0]);
-        errno = ECHILD;
-        return -1;
-    }
-
     pfd.fd = pipefd[0];
     pfd.events = POLLIN | POLLHUP;
     pfd.revents = 0;
@@ -496,6 +490,10 @@ static int launch_daemon(int port, const char *directory)
 
     /* POLLHUP means exec closed the FD_CLOEXEC writer: exec succeeded. */
     close(pipefd[0]);
+    if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
+        errno = ECHILD;
+        return -1;
+    }
     return 0;
 }
 
