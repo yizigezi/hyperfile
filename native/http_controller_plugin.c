@@ -447,25 +447,87 @@ static int control_request(const char *command, char *response, size_t capacity)
     address.sun_family = AF_UNIX;
     snprintf(address.sun_path, sizeof(address.sun_path), "%s", CONTROL_SOCKET);
     if (connect(fd, (struct sockaddr *)&address, sizeof(address)) != 0) {
-        saved = errno;
-        close(fd);
-        errno = saved;
-        return -1;
+        struct pollfd pfd;
+        int polled;
+        if (errno != EINPROGRESS && errno != EAGAIN) {
+            saved = errno;
+            close(fd);
+            errno = saved;
+            return -1;
+        }
+        pfd.fd = fd;
+        pfd.events = POLLOUT;
+        pfd.revents = 0;
+        do { polled = poll(&pfd, 1, CONTROL_TIMEOUT_MS); }
+        while (polled < 0 && errno == EINTR);
+        if (polled <= 0) {
+            saved = polled == 0 ? ETIMEDOUT : errno;
+            close(fd);
+            errno = saved;
+            return -1;
+        }
+        {
+            int socket_error = 0;
+            socklen_t error_size = sizeof(socket_error);
+            if (getsockopt(fd, SOL_SOCKET, SO_ERROR, &socket_error, &error_size) != 0) {
+                saved = errno;
+                close(fd);
+                errno = saved;
+                return -1;
+            }
+            if (socket_error) {
+                close(fd);
+                errno = socket_error;
+                return -1;
+            }
+        }
     }
 
-    n = send(fd, command, length, MSG_DONTWAIT);
-    if (n < 0 && errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR) {
-        saved = errno;
-        close(fd);
-        errno = saved;
-        return -1;
+    {
+        size_t sent = 0;
+        while (sent < length) {
+            n = send(fd, command + sent, length - sent, MSG_DONTWAIT);
+            if (n < 0 && errno == EINTR) continue;
+            if (n < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
+                struct pollfd pfd = { fd, POLLOUT, 0 };
+                int polled;
+                do { polled = poll(&pfd, 1, CONTROL_TIMEOUT_MS); }
+                while (polled < 0 && errno == EINTR);
+                if (polled > 0) continue;
+                saved = polled == 0 ? ETIMEDOUT : errno;
+            } else {
+                saved = n == 0 ? EPIPE : errno;
+            }
+            if (n <= 0) {
+                close(fd);
+                errno = saved;
+                return -1;
+            }
+            sent += (size_t)n;
+        }
     }
-    n = recv(fd, response, capacity - 1, MSG_DONTWAIT);
-    if (n <= 0) {
-        saved = n == 0 ? ECONNRESET : errno;
-        close(fd);
-        errno = saved;
-        return -1;
+
+    for (;;) {
+        n = recv(fd, response, capacity - 1, MSG_DONTWAIT);
+        if (n < 0 && errno == EINTR) continue;
+        if (n < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
+            struct pollfd pfd = { fd, POLLIN, 0 };
+            int polled;
+            do { polled = poll(&pfd, 1, CONTROL_TIMEOUT_MS); }
+            while (polled < 0 && errno == EINTR);
+            if (polled > 0) continue;
+            saved = polled == 0 ? ETIMEDOUT : errno;
+            close(fd);
+            errno = saved;
+            return -1;
+        }
+        if (n <= 0) {
+            saved = n == 0 ? ECONNRESET : errno;
+            close(fd);
+            errno = saved;
+            return -1;
+        }
+        break;
     }
     response[n] = '\0';
     close(fd);
@@ -594,7 +656,9 @@ static JSValue js_status(JSContext *ctx, JSValueConst this_val,
         char json[1024];
         int is_ready = initialized();
         int is_initializing = strncmp(state, "running\n", 8) == 0;
-        const char *init_error = strncmp(state, "error\n", 6) == 0 ? state : "";
+        const char *init_error = strncmp(state, "error\n", 6) == 0
+                               ? "初始化失败，详情见 /userdisk/HyperFile/init.status"
+                               : "";
         snprintf(json, sizeof(json),
                  "{\"ok\":true,\"running\":false,\"initialized\":%s,"
                  "\"initializing\":%s,\"initError\":\"%s\","
