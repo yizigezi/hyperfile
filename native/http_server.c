@@ -17,11 +17,13 @@
  */
 
 #include "http_server.h"
+#include "file_manager.h"
 
 #include <arpa/inet.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <ifaddrs.h>
+#include <limits.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
 #include <pthread.h>
@@ -34,69 +36,88 @@
 #include <time.h>
 #include <unistd.h>
 #include <strings.h>
+#include <sys/wait.h>
+
 
 /* ---------------- 内置上传网页（单文件，无外部依赖） ---------------- */
 
 static const char WEB_UPLOAD_HTML[] =
 "<!DOCTYPE html>\n"
-"<html lang=\"zh-CN\">\n"
-"<head>\n"
-"<meta charset=\"utf-8\">\n"
-"<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">\n"
-"<title>HyperFile</title>\n"
-"<style>\n"
-"body{margin:0;font-family:system-ui,sans-serif;background:#1c1c1c;color:#fff;display:flex;flex-direction:column;align-items:center;min-height:100vh}\n"
-"h1{font-size:22px;margin:28px 0 6px}\n"
-".sub{color:#888;font-size:14px;margin-bottom:24px}\n"
-".card{background:#242424;border-radius:14px;width:86%;max-width:480px;padding:18px;margin:10px 0}\n"
-"label.pick{display:block;text-align:center;border:2px dashed #ff7da8;border-radius:12px;padding:26px 10px;font-size:17px;cursor:pointer}\n"
-"input[type=file]{display:none}\n"
-".row{margin-top:14px}\n"
-".name{font-size:14px;display:flex;justify-content:space-between}\n"
-".bar{height:8px;background:#3a3a3a;border-radius:4px;margin-top:6px;overflow:hidden}\n"
-".fill{height:100%;width:0;background:#ff7da8;border-radius:4px}\n"
-".ok{color:#7dd87d}.err{color:#ff7d7d}\n"
-"</style>\n"
-"</head>\n"
-"<body>\n"
-"<h1>HyperFile</h1>\n"
-"<div class=\"sub\">选择文件，传到词典笔</div>\n"
-"<div class=\"card\">\n"
-"<label class=\"pick\">选择文件<input id=\"f\" type=\"file\" multiple></label>\n"
-"<div id=\"list\"></div>\n"
-"</div>\n"
-"<script>\n"
-"var list=document.getElementById('list');\n"
-"document.getElementById('f').addEventListener('change',function(){\n"
-"  Array.prototype.forEach.call(this.files,function(file){upload(file)});\n"
-"  this.value='';\n"
-"});\n"
-"function upload(file){\n"
-"  var row=document.createElement('div');row.className='row';\n"
-"  var name=document.createElement('div');name.className='name';\n"
-"  var left=document.createElement('span');left.textContent=file.name;\n"
-"  var right=document.createElement('span');right.textContent='0%';\n"
-"  name.appendChild(left);name.appendChild(right);\n"
-"  var bar=document.createElement('div');bar.className='bar';\n"
-"  var fill=document.createElement('div');fill.className='fill';bar.appendChild(fill);\n"
-"  row.appendChild(name);row.appendChild(bar);list.appendChild(row);\n"
-"  var xhr=new XMLHttpRequest();\n"
-"  xhr.open('PUT','/upload?name='+encodeURIComponent(file.name),true);\n"
-"  xhr.upload.onprogress=function(e){\n"
-"    if(e.lengthComputable){\n"
-"      var p=Math.round(e.loaded/e.total*100);fill.style.width=p+'%';right.textContent=p+'%';\n"
-"    }\n"
-"  };\n"
-"  xhr.onload=function(){\n"
-"    if(xhr.status===200){fill.style.width='100%';right.textContent='完成';right.className='ok';}\n"
-"    else{right.textContent='失败';right.className='err';}\n"
-"  };\n"
-"  xhr.onerror=function(){right.textContent='失败';right.className='err';};\n"
-"  xhr.send(file);\n"
-"}\n"
-"</script>\n"
-"</body>\n"
-"</html>\n";
+"<html lang=\"zh-CN\"><head><meta charset=\"utf-8\">"
+"<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
+"<title>HyperFile</title><style>"
+":root{color-scheme:dark;font-family:system-ui,sans-serif;background:#171717;color:#eee}"
+"*{box-sizing:border-box}body{margin:0;min-height:100vh}header{height:64px;padding:0 24px;display:flex;align-items:center;justify-content:space-between;background:#222;border-bottom:1px solid #333}"
+"h1{font-size:21px;margin:0;color:#ff7da8}.hint{font-size:13px;color:#999}"
+"main{max-width:1100px;margin:24px auto;padding:0 18px}.toolbar{display:flex;flex-wrap:wrap;gap:9px;margin:16px 0}"
+"button,.pick{border:0;border-radius:9px;padding:10px 15px;background:#333;color:#eee;font-size:14px;cursor:pointer}"
+"button.primary,.pick{background:#ff7da8;color:#20151a;font-weight:600}button.danger{color:#ff8c8c}"
+".crumb{padding:12px 14px;background:#242424;border-radius:9px;color:#bbb;overflow-wrap:anywhere}"
+".panel{margin-top:14px;background:#222;border:1px solid #333;border-radius:12px;overflow:hidden}"
+".entry{display:grid;grid-template-columns:minmax(0,1fr) 90px 150px;gap:12px;align-items:center;padding:13px 16px;border-bottom:1px solid #333}"
+".entry:last-child{border-bottom:0}.name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer}"
+".folder{color:#ffb6ce}.meta{font-size:12px;color:#888;text-align:right}.actions{display:flex;justify-content:flex-end;gap:6px}.actions button{padding:7px 9px;font-size:12px}"
+"input[type=file]{display:none}.empty{padding:32px;text-align:center;color:#888}.status{min-height:24px;color:#aaa;font-size:13px;margin:12px 2px}"
+"@media(max-width:620px){main{padding:0 10px}.entry{grid-template-columns:minmax(0,1fr) 64px}.meta{display:none}.actions{grid-column:1/-1;justify-content:flex-start}}"
+"</style></head><body><header><h1>HyperFile</h1><nav><a href=\"/\">文件管理</a><a href=\"/about\">关于</a></nav></header>"
+"<main><div class=\"crumb\" id=\"crumb\">/</div><div class=\"toolbar\">"
+"<label class=\"pick\">上传文件<input id=\"upload\" type=\"file\" multiple></label>"
+"<button class=\"primary\" id=\"newdir\">新建文件夹</button><button id=\"paste\">粘贴</button>"
+"<button id=\"up\">上一级</button><button id=\"refresh\">刷新</button></div><div class=\"status\" id=\"status\"></div>"
+"<section class=\"panel\" id=\"list\"></section></main><script>"
+"var current='',clipboard=null;var list=document.getElementById('list'),statusEl=document.getElementById('status');"
+"function enc(v){return encodeURIComponent(v)}function join(a,b){return a?a+'/'+b:b}"
+"function say(s){statusEl.textContent=s}function api(url,method){return fetch(url,{method:method||'GET'}).then(function(r){return r.json().then(function(j){if(!r.ok||j.ok===false)throw Error(j.error||('HTTP '+r.status));return j})})}"
+"function load(){document.getElementById('crumb').textContent='/'+current;list.innerHTML='';"
+"api('/api/files?path='+enc(current)).then(function(data){var entries=data.entries||[];entries.sort(function(a,b){return (b.directory-a.directory)||a.name.localeCompare(b.name)});"
+"if(!entries.length){list.innerHTML='<div class=empty>此文件夹为空</div>';return}"
+"entries.forEach(function(e){var rel=join(current,e.name),row=document.createElement('div');row.className='entry';"
+"var name=document.createElement('div');name.className='name'+(e.directory?' folder':'');name.textContent=(e.directory?'▸ ':'')+e.name;"
+"name.onclick=function(){if(e.directory){current=rel;load()}};row.appendChild(name);"
+"var meta=document.createElement('div');meta.className='meta';meta.textContent=e.directory?'文件夹':formatSize(e.size);row.appendChild(meta);"
+"var actions=document.createElement('div');actions.className='actions';"
+"var cp=document.createElement('button');cp.textContent='复制';cp.onclick=function(){clipboard=rel;say('已复制：'+rel)};actions.appendChild(cp);"
+"if(!e.directory && /\\.amr$/i.test(e.name)){var ins=document.createElement('button');ins.className='primary';ins.textContent='安装';ins.onclick=function(){if(!confirm('确认安装 '+e.name+'？'))return;api('/api/install?path='+enc(rel),'POST').then(function(){say('安装命令已启动，日志：/userdisk/HyperFile/install.log')}).catch(function(x){say('启动安装失败：'+x.message)})};actions.appendChild(ins)}"
+"var del=document.createElement('button');del.className='danger';del.textContent='删除';del.onclick=function(){if(!confirm('确定删除 '+e.name+'？'))return;api('/api/file?path='+enc(rel),'DELETE').then(function(){say('已删除');load()}).catch(function(x){say('删除失败：'+x.message)})};actions.appendChild(del);"
+"row.appendChild(actions);list.appendChild(row)});}).catch(function(e){say('读取失败：'+e.message)})}"
+"function formatSize(n){if(n<1024)return n+' B';if(n<1048576)return (n/1024).toFixed(1)+' KB';return (n/1048576).toFixed(1)+' MB'}"
+"document.getElementById('refresh').onclick=load;"
+"document.getElementById('up').onclick=function(){if(!current)return;current=current.split('/').slice(0,-1).join('/');load()};"
+"document.getElementById('newdir').onclick=function(){var n=prompt('文件夹名称');if(!n)return;api('/api/mkdir?path='+enc(join(current,n)),'POST').then(function(){say('文件夹已创建');load()}).catch(function(e){say('创建失败：'+e.message)})};"
+"document.getElementById('paste').onclick=function(){if(!clipboard){say('剪贴板为空');return}var name=clipboard.split('/').pop(),dest=join(current,name);"
+"api('/api/copy?src='+enc(clipboard)+'&dest='+enc(dest),'POST').then(function(){say('已粘贴：'+dest);load()}).catch(function(e){say('粘贴失败：'+e.message)})};"
+"document.getElementById('upload').onchange=function(){var files=Array.prototype.slice.call(this.files);var i=0;function next(){if(i>=files.length){say('上传完成');load();return}var file=files[i++],xhr=new XMLHttpRequest();say('正在上传：'+file.name);"
+"xhr.open('PUT','/upload?path='+enc(current)+'&name='+enc(file.name));xhr.onload=function(){if(xhr.status===200)next();else say('上传失败：'+file.name)};xhr.onerror=function(){say('网络错误：'+file.name)};xhr.send(file)}next();this.value=''};"
+"load();</script></body></html>\n";
+
+
+static const char ABOUT_HTML[] =
+"<!DOCTYPE html><html lang=\"zh-CN\"><head><meta charset=\"utf-8\">"
+"<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
+"<title>关于 HyperFile</title><style>"
+"body{margin:0;background:#171717;color:#eee;font:15px system-ui,sans-serif}"
+"header{padding:18px 24px;background:#222;border-bottom:1px solid #333;display:flex;justify-content:space-between}"
+"a{color:#ff9cbd;text-decoration:none;margin-left:14px}main{max-width:720px;margin:30px auto;padding:0 18px}"
+".card{background:#222;border:1px solid #333;border-radius:12px;padding:20px;margin-top:18px}"
+"input,button{padding:11px;border-radius:8px;border:1px solid #444;background:#292929;color:#eee;margin:8px 0}"
+"button{background:#ff7da8;color:#24151b;border:0;font-weight:600;cursor:pointer}"
+".muted{color:#999;font-size:13px;line-height:1.6}#status{margin-top:12px;color:#ffb6ce}"
+"</style></head><body><header><b>HyperFile</b><nav><a href=\"/\">文件管理</a><a href=\"/about\">关于</a></nav></header>"
+"<main><h2>关于 HyperFile</h2><p class=\"muted\">HyperFile 文件传输与设备管理工具。</p>"
+"<section class=\"card\"><h3>手动更新</h3>"
+"<p class=\"muted\">选择新版本 HyperFile AMR 安装包，并输入设备主界面显示的更新验证码。更新期间 HTTP 服务会停止，安装完成后应用将自动重新启动。</p>"
+"<input id=\"pkg\" type=\"file\" accept=\".amr\"><br>"
+"<input id=\"token\" type=\"password\" inputmode=\"numeric\" maxlength=\"12\" placeholder=\"设备上显示的更新验证码\"><br>"
+"<button id=\"update\">手动更新</button><div id=\"status\"></div></section>"
+"<script>var btn=document.getElementById('update'),statusEl=document.getElementById('status');"
+"btn.onclick=function(){var f=document.getElementById('pkg').files[0],token=document.getElementById('token').value;"
+"if(!f){statusEl.textContent='请先选择 AMR 文件';return}if(!token){statusEl.textContent='请输入设备上显示的更新验证码';return}"
+"if(!confirm('将卸载并重新安装 HyperFile，确认继续？'))return;btn.disabled=true;statusEl.textContent='正在上传更新包…';"
+"var x=new XMLHttpRequest();x.open('PUT','/api/update');x.setRequestHeader('X-File-Name',f.name);"
+"x.setRequestHeader('X-HyperFile-Token',token);x.onload=function(){btn.disabled=false;try{var j=JSON.parse(x.responseText);"
+"if(x.status===200&&j.ok){document.open();document.write('<!DOCTYPE html><html lang=\'zh-CN\'><head><meta charset=\'utf-8\'><meta name=\'viewport\' content=\'width=device-width,initial-scale=1\'><title>HyperFile 正在更新</title><style>*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;background:#171717;color:#eee;font:16px system-ui,sans-serif}.panel{text-align:center;padding:32px;max-width:420px}.spinner{width:36px;height:36px;margin:0 auto 22px;border:3px solid #444;border-top-color:#ff9cbd;border-radius:50%;animation:spin 1s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}h2{font-size:21px;font-weight:600}p{color:#aaa;line-height:1.7;font-size:14px}</style></head><body><main class=\'panel\'><div class=\'spinner\'></div><h2>HyperFile 正在更新</h2><p>更新程序已启动，HTTP 服务即将停止。请勿关闭设备或中断电源，更新完成后 HyperFile 将自动重新启动。</p><p>如果长时间没有恢复，请查看设备上的 /tmp/hyperfile-update.log。</p></main></body></html>');document.close();}"
+"else statusEl.textContent='更新失败：'+(j.error||x.status)}}catch(e){statusEl.textContent='更新请求失败：'+x.status}};"
+"x.onerror=function(){btn.disabled=false;statusEl.textContent='网络错误'};x.send(f)};</script></main></body></html>";
 
 /* ---------------- 全局状态（单 server 线程 + 主线程读，够用） ---------------- */
 
@@ -198,7 +219,7 @@ static void hf_sanitize_name(char* out, size_t outlen, const char* raw)
 /* ---------------- HTTP 读写小工具 ---------------- */
 
 /* 读到 \r\n\r\n；返回头长度（含空行），出错 -1，超上限 -2 */
-static int hf_read_headers(int fd, char* buf, size_t buflen)
+static int hf_read_headers(int fd, char* buf, size_t buflen, size_t* total_read)
 {
     size_t used = 0;
     while (used + 1 < buflen) {
@@ -208,8 +229,10 @@ static int hf_read_headers(int fd, char* buf, size_t buflen)
         used += (size_t)n;
         buf[used] = '\0';
         const char* end = strstr(buf, "\r\n\r\n");
-        if (end)
-            return (int)(end - buf) + 4; /* 头长度（含空行），body 还在 buf 里但不算入 */
+        if (end) {
+            if (total_read) *total_read = used;
+            return (int)(end - buf) + 4; /* header length including terminator */
+        }
     }
     return -2;
 }
@@ -303,6 +326,188 @@ static int hf_get_query(const char* path, const char* name, char* out, size_t ou
     return 0;
 }
 
+/* Launch miniapp_cli without a shell; the HTTP request never waits for installation. */
+static int hf_launch_amr_install(const char *filepath)
+{
+    int pipefd[2];
+    pid_t first;
+    if (pipe(pipefd) != 0) return -1;
+    (void)fcntl(pipefd[1], F_SETFD, FD_CLOEXEC);
+    first = fork();
+    if (first < 0) { close(pipefd[0]); close(pipefd[1]); return -1; }
+    if (first == 0) {
+        pid_t second;
+        close(pipefd[0]);
+        if (setsid() < 0) _exit(126);
+        second = fork();
+        if (second < 0) _exit(126);
+        if (second > 0) _exit(0);
+        int logfd = open("/userdisk/HyperFile/install.log", O_WRONLY | O_CREAT | O_APPEND, 0644);
+        if (logfd >= 0) {
+            (void)dup2(logfd, STDOUT_FILENO);
+            (void)dup2(logfd, STDERR_FILENO);
+            if (logfd > STDERR_FILENO) close(logfd);
+        }
+        char *const argv[] = { (char *)"miniapp_cli", (char *)"install", (char *)filepath, NULL };
+        execvp("miniapp_cli", argv);
+        int saved = errno;
+        (void)write(pipefd[1], &saved, sizeof(saved));
+        _exit(127);
+    }
+    close(pipefd[1]);
+    int status = 0;
+    while (waitpid(first, &status, 0) < 0 && errno == EINTR) {}
+    int child_errno = 0;
+    ssize_t n;
+    do { n = read(pipefd[0], &child_errno, sizeof(child_errno)); } while (n < 0 && errno == EINTR);
+    close(pipefd[0]);
+    if (n > 0) { errno = child_errno; return -1; }
+    if (n < 0) return -1;
+    return 0; /* CLOEXEC closed the pipe: exec succeeded. */
+}
+
+#define UPDATE_PACKAGE "/tmp/hyperfile-update.amr"
+#define UPDATE_PART "/tmp/hyperfile-update.amr.part"
+#define UPDATE_TOKEN_FILE "/tmp/hyperfile-update.token"
+#define UPDATE_LOG "/tmp/hyperfile-update.log"
+#define UPDATER_PATH "/userdisk/HyperFile/hyperfile-updater"
+
+static int hf_update_token_valid(const char *headers)
+{
+    char supplied[64] = "", expected[64] = "";
+    FILE *fp;
+    if (!hf_get_header(headers, "X-HyperFile-Token", supplied, sizeof(supplied))) return 0;
+    fp = fopen(UPDATE_TOKEN_FILE, "r");
+    if (!fp) return 0;
+    if (!fgets(expected, sizeof(expected), fp)) expected[0] = 0;
+    fclose(fp);
+    supplied[strcspn(supplied, "\r\n")] = 0;
+    expected[strcspn(expected, "\r\n")] = 0;
+    if (!expected[0] || strlen(supplied) != strlen(expected)) return 0;
+    unsigned char diff = 0;
+    for (size_t i = 0; i < strlen(expected); ++i)
+        diff |= (unsigned char)(supplied[i] ^ expected[i]);
+    return diff == 0;
+}
+
+static int hf_write_all(int fd, const char *data, size_t length)
+{
+    size_t offset = 0;
+    while (offset < length) {
+        ssize_t n = write(fd, data + offset, length - offset);
+        if (n < 0 && errno == EINTR) continue;
+        if (n <= 0) return -1;
+        offset += (size_t)n;
+    }
+    return 0;
+}
+
+static int hf_launch_updater(void)
+{
+    int pipefd[2];
+    pid_t first;
+    if (pipe(pipefd) != 0) return -1;
+    (void)fcntl(pipefd[1], F_SETFD, FD_CLOEXEC);
+    first = fork();
+    if (first < 0) { close(pipefd[0]); close(pipefd[1]); return -1; }
+    if (first == 0) {
+        close(pipefd[0]);
+        if (setsid() < 0) {
+            int e = errno; (void)write(pipefd[1], &e, sizeof(e)); _exit(126);
+        }
+        pid_t second = fork();
+        if (second < 0) {
+            int e = errno; (void)write(pipefd[1], &e, sizeof(e)); _exit(126);
+        }
+        if (second > 0) _exit(0);
+        int logfd = open(UPDATE_LOG, O_WRONLY | O_CREAT | O_APPEND, 0600);
+        if (logfd >= 0) {
+            (void)dup2(logfd, STDOUT_FILENO);
+            (void)dup2(logfd, STDERR_FILENO);
+            if (logfd > STDERR_FILENO) close(logfd);
+        }
+        execl(UPDATER_PATH, UPDATER_PATH, (char *)NULL);
+        int saved = errno;
+        (void)write(pipefd[1], &saved, sizeof(saved));
+        _exit(127);
+    }
+    close(pipefd[1]);
+    int status = 0;
+    while (waitpid(first, &status, 0) < 0 && errno == EINTR) {}
+    int child_errno = 0;
+    ssize_t n;
+    do { n = read(pipefd[0], &child_errno, sizeof(child_errno)); } while (n < 0 && errno == EINTR);
+    close(pipefd[0]);
+    if (n > 0) { errno = child_errno; return -1; }
+    if (n < 0) return -1;
+    if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) { errno = ECHILD; return -1; }
+    return 0;
+}
+
+static void hf_handle_update(int fd, const char *headers, const char *body_prefix,
+                             size_t prefix_len, long content_len)
+{
+    char filename[256] = "";
+    int out = -1;
+    long remain;
+    int failed = 0;
+    if (access("/tmp/hyperfile-update.lock", F_OK) == 0) {
+        hf_respond_json(fd, 409, "{\"ok\":false,\"error\":\"an update is already running\"}");
+        return;
+    }
+    if (!hf_update_token_valid(headers)) {
+        hf_respond_json(fd, 403, "{\"ok\":false,\"error\":\"invalid update code\"}");
+        return;
+    }
+    if (!hf_get_header(headers, "X-File-Name", filename, sizeof(filename)) ||
+        strlen(filename) < 4 || strcasecmp(filename + strlen(filename) - 4, ".amr") != 0 ||
+        content_len < 1024 || content_len > 256L * 1024L * 1024L) {
+        hf_respond_json(fd, 400, "{\"ok\":false,\"error\":\"select a valid AMR package (1 KB to 256 MB)\"}");
+        return;
+    }
+    (void)unlink(UPDATE_PART);
+    out = open(UPDATE_PART, O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, 0600);
+    if (out < 0) {
+        hf_respond_json(fd, 500, "{\"ok\":false,\"error\":\"cannot create update staging file\"}");
+        return;
+    }
+    remain = content_len;
+    if (prefix_len) {
+        size_t n = prefix_len < (size_t)remain ? prefix_len : (size_t)remain;
+        if (hf_write_all(out, body_prefix, n) != 0) failed = 1;
+        else remain -= (long)n;
+    }
+    char buffer[16384];
+    while (!failed && remain > 0) {
+        size_t want = remain > (long)sizeof(buffer) ? sizeof(buffer) : (size_t)remain;
+        ssize_t n = recv(fd, buffer, want, 0);
+        if (n <= 0) { failed = 1; break; }
+        if (hf_write_all(out, buffer, (size_t)n) != 0) { failed = 1; break; }
+        remain -= n;
+    }
+    if (remain != 0) failed = 1;
+    if (!failed && fsync(out) != 0) failed = 1;
+    if (close(out) != 0) failed = 1;
+    out = -1;
+    if (failed) {
+        unlink(UPDATE_PART);
+        hf_respond_json(fd, 500, "{\"ok\":false,\"error\":\"update upload was incomplete\"}");
+        return;
+    }
+    if (rename(UPDATE_PART, UPDATE_PACKAGE) != 0) {
+        unlink(UPDATE_PART);
+        hf_respond_json(fd, 500, "{\"ok\":false,\"error\":\"cannot finalize update package\"}");
+        return;
+    }
+    if (hf_launch_updater() != 0) {
+        char msg[192];
+        snprintf(msg, sizeof(msg), "{\"ok\":false,\"error\":\"cannot start updater (errno %d)\"}", errno);
+        hf_respond_json(fd, 500, msg);
+        return;
+    }
+    hf_respond_json(fd, 200, "{\"ok\":true,\"started\":true}");
+}
+
 /* ---------------- 连接处理 ---------------- */
 
 static void hf_handle_upload(int fd, const char* path, const char* headers,
@@ -318,10 +523,24 @@ static void hf_handle_upload(int fd, const char* path, const char* headers,
         hf_get_header(headers, "X-File-Name", raw_name, sizeof(raw_name));
 
     char name[512];
+    char relative_dir[512] = "";
+    char upload_dir[PATH_MAX];
     hf_sanitize_name(name, sizeof(name), raw_name);
+    if (hf_get_query(path, "path", relative_dir, sizeof(relative_dir))) {
+        char decoded_dir[512];
+        hf_url_decode(decoded_dir, sizeof(decoded_dir), relative_dir);
+        snprintf(relative_dir, sizeof(relative_dir), "%s", decoded_dir);
+    }
+    if (hf_fm_resolve_dir(g_status.dir, relative_dir, upload_dir, sizeof(upload_dir)) != 0) {
+        hf_respond_json(fd, 400, "{\"ok\":false,\"error\":\"invalid upload directory\"}");
+        return;
+    }
 
-    char filepath[1024];
-    snprintf(filepath, sizeof(filepath), "%s/%s", g_status.dir, name);
+    char filepath[PATH_MAX];
+    if (snprintf(filepath, sizeof(filepath), "%s/%s", upload_dir, name) >= (int)sizeof(filepath)) {
+        hf_respond_json(fd, 400, "{\"ok\":false,\"error\":\"file path too long\"}");
+        return;
+    }
 
     FILE* fp = fopen(filepath, "wb");
     if (!fp) {
@@ -367,7 +586,8 @@ static void hf_handle_upload(int fd, const char* path, const char* headers,
 static void hf_handle_conn(int fd)
 {
     char headers[16384];
-    int hlen = hf_read_headers(fd, headers, sizeof(headers));
+    size_t total_read = 0;
+    int hlen = hf_read_headers(fd, headers, sizeof(headers), &total_read);
     if (hlen <= 0) {
         close(fd);
         return;
@@ -379,8 +599,7 @@ static void hf_handle_conn(int fd)
 
     /* body 可能已经随头部一起读进来了，记下前缀 */
     const char* body_prefix = headers + hlen;
-    /* headers 缓冲里尾部还有 recv 多读的 body 字节，重算长度 */
-    size_t total_read = strlen(headers);
+    /* Use the byte count returned by recv; strlen is invalid for binary bodies. */
     size_t prefix_len = total_read > (size_t)hlen ? total_read - (size_t)hlen : 0;
 
     char cl_buf[32] = "";
@@ -391,6 +610,57 @@ static void hf_handle_conn(int fd)
     if (strcmp(method, "GET") == 0 && strcmp(path, "/") == 0) {
         hf_respond(fd, 200, "OK", "text/html; charset=utf-8",
                    WEB_UPLOAD_HTML, sizeof(WEB_UPLOAD_HTML) - 1);
+    } else if (strcmp(method, "GET") == 0 && strcmp(path, "/about") == 0) {
+        hf_respond(fd, 200, "OK", "text/html; charset=utf-8", ABOUT_HTML, sizeof(ABOUT_HTML) - 1);
+    } else if (strcmp(method, "GET") == 0 && strncmp(path, "/api/files", 10) == 0) {
+        char rel[512] = "", decoded[512], json[32768];
+        hf_get_query(path, "path", rel, sizeof(rel));
+        hf_url_decode(decoded, sizeof(decoded), rel);
+        if (hf_fm_list(g_status.dir, decoded, json, sizeof(json)) == 0)
+            hf_respond_json(fd, 200, json);
+        else
+            hf_respond_json(fd, 400, "{\"ok\":false,\"error\":\"cannot list directory\"}");
+    } else if (strcmp(method, "POST") == 0 && strncmp(path, "/api/mkdir", 10) == 0) {
+        char rel[512] = "", decoded[512];
+        hf_get_query(path, "path", rel, sizeof(rel));
+        hf_url_decode(decoded, sizeof(decoded), rel);
+        if (hf_fm_mkdir(g_status.dir, decoded) == 0)
+            hf_respond_json(fd, 200, "{\"ok\":true}");
+        else
+            hf_respond_json(fd, 400, "{\"ok\":false,\"error\":\"cannot create directory\"}");
+    } else if (strcmp(method, "DELETE") == 0 && strncmp(path, "/api/file", 9) == 0) {
+        char rel[512] = "", decoded[512];
+        hf_get_query(path, "path", rel, sizeof(rel));
+        hf_url_decode(decoded, sizeof(decoded), rel);
+        if (hf_fm_delete(g_status.dir, decoded) == 0)
+            hf_respond_json(fd, 200, "{\"ok\":true}");
+        else
+            hf_respond_json(fd, 400, "{\"ok\":false,\"error\":\"cannot delete item\"}");
+    } else if (strcmp(method, "POST") == 0 && strncmp(path, "/api/copy", 9) == 0) {
+        char src[512] = "", dst[512] = "", decoded_src[512], decoded_dst[512];
+        hf_get_query(path, "src", src, sizeof(src));
+        hf_get_query(path, "dest", dst, sizeof(dst));
+        hf_url_decode(decoded_src, sizeof(decoded_src), src);
+        hf_url_decode(decoded_dst, sizeof(decoded_dst), dst);
+        if (hf_fm_copy(g_status.dir, decoded_src, decoded_dst) == 0)
+            hf_respond_json(fd, 200, "{\"ok\":true}");
+        else
+            hf_respond_json(fd, 400, "{\"ok\":false,\"error\":\"cannot copy item (destination may exist)\"}");
+    } else if (strcmp(method, "POST") == 0 && strncmp(path, "/api/install", 12) == 0) {
+        char rel[512] = "", decoded[512], filepath[PATH_MAX];
+        hf_get_query(path, "path", rel, sizeof(rel));
+        hf_url_decode(decoded, sizeof(decoded), rel);
+        size_t n = strlen(decoded);
+        if (n < 4 || strcasecmp(decoded + n - 4, ".amr") != 0 ||
+            hf_fm_resolve_file(g_status.dir, decoded, filepath, sizeof(filepath)) != 0) {
+            hf_respond_json(fd, 400, "{\"ok\":false,\"error\":\"only regular .amr packages can be installed\"}");
+        } else if (hf_launch_amr_install(filepath) != 0) {
+            char msg[256];
+            snprintf(msg, sizeof(msg), "{\"ok\":false,\"error\":\"cannot execute miniapp_cli (errno %d)\"}", errno);
+            hf_respond_json(fd, 500, msg);
+        } else {
+            hf_respond_json(fd, 200, "{\"ok\":true,\"started\":true}");
+        }
     } else if (strcmp(method, "GET") == 0 && strncmp(path, "/status", 7) == 0) {
         char json[1280];
         pthread_mutex_lock(&g_lock);
@@ -401,6 +671,8 @@ static void hf_handle_conn(int fd)
                  g_status.received, g_status.last_file);
         pthread_mutex_unlock(&g_lock);
         hf_respond_json(fd, 200, json);
+    } else if (strcmp(method, "PUT") == 0 && strcmp(path, "/api/update") == 0) {
+        hf_handle_update(fd, headers, body_prefix, prefix_len, content_len);
     } else if ((strcmp(method, "PUT") == 0 || strcmp(method, "POST") == 0) &&
                strncmp(path, "/upload", 7) == 0) {
         hf_handle_upload(fd, path, headers, body_prefix, prefix_len, content_len);
@@ -495,7 +767,8 @@ int hf_server_stop(void)
     }
     g_stop = 1;
     if (g_listen_fd >= 0) {
-        close(g_listen_fd); /* 让 accept 返回 */
+        shutdown(g_listen_fd, SHUT_RDWR); /* wake a thread blocked in accept */
+        close(g_listen_fd);
         g_listen_fd = -1;
     }
     pthread_mutex_unlock(&g_lock);
