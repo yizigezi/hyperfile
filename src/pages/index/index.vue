@@ -90,7 +90,7 @@
           <text class="share-info-label">服务状态</text>
           <text class="share-info-value">{{ running ? '运行中' : '已停止' }}</text>
           <text class="share-info-label">监听端口</text>
-          <text class="share-info-value">{{ PORT }}</text>
+          <text class="share-info-value">8080</text>
           <text class="share-info-label">累计接收</text>
           <text class="share-info-value">{{ formatSize(received) }}</text>
         </div>
