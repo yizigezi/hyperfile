@@ -244,3 +244,194 @@
 .diagnostic-row { padding: 5px 2px; border-bottom-width: 1px; border-bottom-color: @outline-variant; }
 .diagnostic-label { color: @primary; font-size: 10px; }
 .diagnostic-value { color: @on-surface; font-size: 10px; margin-top: 2px; }
+
+
+/* Horizontal card shelves follow readex-nt's native scroller pattern.
+   The scroller component owns touch gestures; CSS overflow is intentionally not used. */
+.local-page,
+.share-page,
+.settings-body {
+  min-height: 0;
+  flex-direction: column;
+}
+.local-toolbar {
+  flex-shrink: 0;
+}
+.local-status {
+  flex: 1;
+  min-height: 0;
+  align-items: center;
+  justify-content: center;
+}
+.local-shelf,
+.share-shelf,
+.settings-shelf {
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+  margin-top: 6px;
+  padding: 0 16px;
+  flex-direction: row;
+}
+.local-file-card {
+  width: 156px;
+  height: 154px;
+  flex-shrink: 0;
+  margin-right: 10px;
+  padding: 10px;
+  border-radius: 20px;
+  background-color: @surface-container;
+  flex-direction: column;
+}
+.local-card-cover {
+  width: 100%;
+  height: 54px;
+  border-radius: 14px;
+  background-color: @primary-container;
+  align-items: center;
+  justify-content: center;
+}
+.local-card-folder { background-color: @secondary-container; }
+.local-card-type {
+  color: @on-primary-container;
+  font-size: 11px;
+  font-weight: bold;
+}
+.local-card-name {
+  color: @on-surface;
+  font-size: 12px;
+  font-weight: bold;
+  margin-top: 8px;
+  max-height: 34px;
+  text-overflow: ellipsis;
+}
+.local-card-meta {
+  color: @on-surface-variant;
+  font-size: 10px;
+  margin-top: 3px;
+}
+.local-card-install {
+  height: 24px;
+  min-width: 76px;
+  padding: 0 10px;
+  margin-top: 6px;
+  border-radius: 12px;
+  align-items: center;
+  justify-content: center;
+  background-color: @primary;
+}
+.local-card-install-text {
+  color: @on-primary;
+  font-size: 10px;
+  font-weight: bold;
+}
+.local-footer-hint {
+  height: 16px;
+  padding: 0 18px;
+  color: @on-surface-variant;
+  font-size: 9px;
+}
+.share-shelf {
+  margin-top: 0;
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+.share-feature-card,
+.share-directory-card,
+.share-info-card {
+  height: 174px;
+  flex-shrink: 0;
+  margin-right: 10px;
+  padding: 10px 12px;
+  border-radius: 20px;
+  background-color: @surface-container;
+  flex-direction: column;
+}
+.share-feature-card { width: 278px; align-items: center; }
+.share-directory-card { width: 224px; }
+.share-info-card { width: 164px; }
+.share-qr-panel {
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+  margin-top: 5px;
+  border-radius: 12px;
+  background-color: @surface-container-low;
+  align-items: center;
+  justify-content: center;
+}
+.share-feature-card .section-heading,
+.share-directory-card .section-heading,
+.share-info-card .section-heading { font-size: 14px; }
+.share-feature-card .section-subtitle { margin-top: 2px; }
+.share-feature-card .primary-action { margin-top: 5px; height: 29px; min-height: 29px; }
+.share-feature-card .share-footnote { margin-top: 3px; }
+.share-address { max-width: 250px; text-overflow: ellipsis; }
+.share-directory-path {
+  color: @on-surface-variant;
+  font-size: 9px;
+  margin-top: 4px;
+  max-height: 14px;
+  text-overflow: ellipsis;
+}
+.share-file-summary {
+  flex-direction: row;
+  align-items: baseline;
+  margin-top: 4px;
+}
+.share-file-count { color: @primary; font-size: 20px; font-weight: bold; }
+.share-file-count-label { color: @on-surface-variant; font-size: 10px; margin-left: 4px; }
+.shared-files { width: 100%; flex: 1; min-height: 0; margin-top: 3px; }
+.shared-file-row { padding: 4px 7px; margin-bottom: 3px; }
+.shared-file-name { max-height: 14px; text-overflow: ellipsis; }
+.share-directory-card .side-footnote { margin-top: 3px; }
+.share-info-label { color: @on-surface-variant; font-size: 10px; margin-top: 9px; }
+.share-info-value { color: @on-surface; font-size: 12px; font-weight: bold; margin-top: 2px; }
+.settings-shelf {
+  margin-top: 0;
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+.settings-card {
+  height: 174px;
+  flex-shrink: 0;
+  margin: 0 10px 0 0;
+  padding: 12px;
+  border-radius: 20px;
+  background-color: @surface-container;
+  flex-direction: column;
+}
+.settings-card-wide { width: 258px; }
+.settings-card-actions { width: 218px; }
+.settings-card-about { width: 208px; }
+.settings-card .section-heading { font-size: 14px; margin-bottom: 5px; }
+.settings-card .setting-line { min-height: 36px; }
+.setting-path-value {
+  color: @on-surface-variant;
+  font-size: 9px;
+  max-height: 14px;
+  text-overflow: ellipsis;
+  margin: 1px 0 5px;
+}
+.setting-action-card {
+  flex: 1;
+  min-height: 0;
+  margin-top: 6px;
+  padding: 8px;
+  border-radius: 14px;
+  background-color: @surface-container-high;
+  flex-direction: column;
+}
+.setting-action-card .setting-description { margin-top: 3px; }
+.setting-action-card .setting-chevron {
+  align-self: flex-end;
+  margin-top: 3px;
+}
+.settings-about-title {
+  color: @on-surface;
+  font-size: 17px;
+  font-weight: bold;
+  margin-top: 12px;
+}
+.settings-card-about .settings-version { margin-top: 8px; }
+.settings-card-about .settings-note { margin-top: 8px; line-height: 14px; }
