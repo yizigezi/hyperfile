@@ -427,13 +427,13 @@ export default {
           const output = await execShell('cat ' + shellQuote(logPath) + ' 2>/dev/null || true')
           if (status.trim() !== 'RUNNING') {
             this.scriptRunning = false
-            this.scriptResultText = (output || '(无输出)') + '\\n\\n退出码：' + status.trim()
+            this.scriptResultText = (output || '(无输出)') + '\n\n退出码：' + status.trim()
             return
           }
-          this.scriptResultText = (output || '脚本正在运行…') + '\\n\\n运行中…'
+          this.scriptResultText = (output || '脚本正在运行…') + '\n\n运行中…'
         }
         this.scriptRunning = false
-        this.scriptResultText += '\\n\\n等待超时；脚本可能仍在后台运行。'
+        this.scriptResultText += '\n\n等待超时；脚本可能仍在后台运行。'
       } catch (e) {
         this.scriptRunning = false
         this.scriptResultText = '启动或读取结果失败：' + (e && e.message ? e.message : e)
