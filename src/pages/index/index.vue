@@ -241,7 +241,7 @@
 
 <script>
 import FlQrcode from 'falcon-ui/src/packages/qr-code/index.vue'
-import { fs, execShell } from '../../utils/FileSystem/FileSystem.js'
+import { fs } from '../../utils/FileSystem/FileSystem.js'
 
 const UPLOAD_DIR = '/userdisk/Favorite/HyperFile'
 const PORT = 8080
@@ -270,10 +270,6 @@ function normalizePath(path) {
 
 function joinPath(parent, name) {
   return (parent === '/' ? '' : parent) + '/' + name
-}
-
-function shellQuote(value) {
-  return "'" + String(value).replace(/'/g, "'\\''") + "'"
 }
 
 export default {
@@ -395,48 +391,47 @@ export default {
       this.showInstallConfirm = false
       if (!path) return
       try {
-        await execShell('miniapp_cli install ' + shellQuote(path) + ' >/tmp/hyperfile-local-install.log 2>&1 &')
-        this.showToast('已提交安装任务，日志：/tmp/hyperfile-local-install.log')
+        const native = await import('hyperfile_local_ops').then((m) => m.default || m)
+        const task = await native.installAmr(path)
+        this.showToast('安装任务已启动')
+        this.showTaskResult(native, task.taskId, 'AMR 安装')
       } catch (e) {
         this.showToast('启动安装失败：' + (e && e.message ? e.message : e))
+      }
+    },
+    async showTaskResult(native, taskId, title) {
+      this.scriptResultTitle = title
+      this.scriptResultText = '正在运行…'
+      this.scriptRunning = true
+      this.showScriptResult = true
+      try {
+        for (let i = 0; i < 600; i++) {
+          const result = await native.taskStatus(taskId)
+          this.scriptResultText = (result.output || '（无输出）') +
+            (result.running ? '\\n\\n运行中…' : '\\n\\n退出码：' + result.exitCode)
+          if (!result.running) {
+            this.scriptRunning = false
+            return
+          }
+          await new Promise((resolve) => this.$page.setTimeout(resolve, 500))
+        }
+        this.scriptRunning = false
+        this.scriptResultText += '\\n\\n等待超时；任务可能仍在运行。'
+      } catch (e) {
+        this.scriptRunning = false
+        this.scriptResultText = '读取任务结果失败：' + (e && e.message ? e.message : e)
       }
     },
     async RunShellScript() {
       const path = this.pendingScriptPath
       this.showScriptConfirm = false
       if (!path) return
-      const token = String(Date.now())
-      const logPath = '/tmp/hyperfile-script-' + token + '.log'
-      const statusPath = '/tmp/hyperfile-script-' + token + '.status'
-      this.scriptResultTitle = path
-      this.scriptResultText = '正在启动…'
-      this.scriptRunning = true
-      this.showScriptResult = true
       try {
-        const command = "( if [ ! -x " + shellQuote(path) + " ]; then chmod +x " + shellQuote(path) +
-          "; chmod_rc=$?; if [ \"$chmod_rc\" -ne 0 ]; then echo 'chmod +x 失败' ; printf '126' > " +
-          shellQuote(statusPath) + "; exit 0; fi; fi; " + shellQuote(path) +
-          "; rc=$?; printf '%s' \"$rc\" > " + shellQuote(statusPath) +
-          "; ) > " + shellQuote(logPath) + " 2>&1 < /dev/null &"
-        await execShell(command)
-        this.scriptResultText = '正在运行…'
-        for (let i = 0; i < 600; i++) {
-          await new Promise((resolve) => this.$page.setTimeout(resolve, 500))
-          const status = await execShell('if [ -f ' + shellQuote(statusPath) +
-            ' ]; then cat ' + shellQuote(statusPath) + '; else printf RUNNING; fi')
-          const output = await execShell('cat ' + shellQuote(logPath) + ' 2>/dev/null || true')
-          if (status.trim() !== 'RUNNING') {
-            this.scriptRunning = false
-            this.scriptResultText = (output || '(无输出)') + '\n\n退出码：' + status.trim()
-            return
-          }
-          this.scriptResultText = (output || '脚本正在运行…') + '\n\n运行中…'
-        }
-        this.scriptRunning = false
-        this.scriptResultText += '\n\n等待超时；脚本可能仍在后台运行。'
+        const native = await import('hyperfile_local_ops').then((m) => m.default || m)
+        const task = await native.runScript(path)
+        this.showTaskResult(native, task.taskId, path)
       } catch (e) {
-        this.scriptRunning = false
-        this.scriptResultText = '启动或读取结果失败：' + (e && e.message ? e.message : e)
+        this.showToast('启动脚本失败：' + (e && e.message ? e.message : e))
       }
     },
     async refreshShare() {
