@@ -46,6 +46,9 @@
           <div class="local-card-install" v-if="!entry.isDirectory && entry.extension === 'AMR'">
             <text class="local-card-install-text">安装 AMR</text>
           </div>
+          <div class="local-card-install" v-if="!entry.isDirectory && entry.extension === 'SH'">
+            <text class="local-card-install-text">运行脚本</text>
+          </div>
         </div>
       </scroller>
       <text class="local-footer-hint">设备文件系统 · 支持浏览目录与安装 AMR</text>
@@ -169,6 +172,38 @@
       </div>
     </div>
 
+    <div class="dialog-mask" v-if="showScriptConfirm">
+      <div class="dialog-card">
+        <text class="dialog-title">运行 Shell 脚本</text>
+        <text class="dialog-description">安全提示：脚本会以当前应用权限执行系统命令，可能修改或删除文件、改变系统设置。只运行你自己编写或确认可信的脚本。</text>
+        <text class="dialog-path">{{ pendingScriptPath }}</text>
+        <text class="dialog-description">若文件没有执行权限，HyperFile 会先尝试添加执行权限（chmod +x），然后运行。</text>
+        <div class="dialog-actions">
+          <div class="dialog-button" @click="showScriptConfirm = false">
+            <text class="dialog-button-label">取消</text>
+          </div>
+          <div class="dialog-button dialog-button-primary" @click="RunShellScript">
+            <text class="dialog-button-label dialog-button-primary-label">确认运行</text>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="dialog-mask" v-if="showScriptResult">
+      <div class="dialog-card diagnostics-card">
+        <text class="dialog-title">{{ scriptRunning ? '脚本运行中' : '脚本运行结果' }}</text>
+        <text class="diagnostic-label">{{ scriptResultTitle }}</text>
+        <scroll class="diagnostics-scroll" scroll-y="true">
+          <text class="script-output">{{ scriptResultText }}</text>
+        </scroll>
+        <div class="dialog-actions">
+          <div class="dialog-button dialog-button-primary" @click="showScriptResult = false">
+            <text class="dialog-button-label dialog-button-primary-label">关闭</text>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div class="dialog-mask" v-if="showSetupConfirm">
       <div class="dialog-card">
         <text class="dialog-title">首次配置共享服务</text>
@@ -263,7 +298,13 @@ export default {
       showDiagnostics: false,
       diagnosticLines: [],
       showInstallConfirm: false,
-      pendingInstallPath: ''
+      pendingInstallPath: '',
+      showScriptConfirm: false,
+      pendingScriptPath: '',
+      showScriptResult: false,
+      scriptResultTitle: '',
+      scriptResultText: '',
+      scriptRunning: false
     }
   },
   onShow() {
@@ -342,6 +383,11 @@ export default {
         this.showInstallConfirm = true
         return
       }
+      if (entry.extension === 'SH') {
+        this.pendingScriptPath = entry.path
+        this.showScriptConfirm = true
+        return
+      }
       this.showToast('暂不支持打开此格式文件')
     },
     async InstallLocalAmr() {
@@ -353,6 +399,44 @@ export default {
         this.showToast('已提交安装任务，日志：/tmp/hyperfile-local-install.log')
       } catch (e) {
         this.showToast('启动安装失败：' + (e && e.message ? e.message : e))
+      }
+    },
+    async RunShellScript() {
+      const path = this.pendingScriptPath
+      this.showScriptConfirm = false
+      if (!path) return
+      const token = String(Date.now())
+      const logPath = '/tmp/hyperfile-script-' + token + '.log'
+      const statusPath = '/tmp/hyperfile-script-' + token + '.status'
+      this.scriptResultTitle = path
+      this.scriptResultText = '正在启动…'
+      this.scriptRunning = true
+      this.showScriptResult = true
+      try {
+        const command = "( if [ ! -x " + shellQuote(path) + " ]; then chmod +x " + shellQuote(path) +
+          "; chmod_rc=$?; if [ \"$chmod_rc\" -ne 0 ]; then echo 'chmod +x 失败' ; printf '126' > " +
+          shellQuote(statusPath) + "; exit 0; fi; fi; " + shellQuote(path) +
+          "; rc=$?; printf '%s' \"$rc\" > " + shellQuote(statusPath) +
+          "; ) > " + shellQuote(logPath) + " 2>&1 < /dev/null &"
+        await execShell(command)
+        this.scriptResultText = '正在运行…'
+        for (let i = 0; i < 600; i++) {
+          await new Promise((resolve) => this.$page.setTimeout(resolve, 500))
+          const status = await execShell('if [ -f ' + shellQuote(statusPath) +
+            ' ]; then cat ' + shellQuote(statusPath) + '; else printf RUNNING; fi')
+          const output = await execShell('cat ' + shellQuote(logPath) + ' 2>/dev/null || true')
+          if (status.trim() !== 'RUNNING') {
+            this.scriptRunning = false
+            this.scriptResultText = (output || '(无输出)') + '\\n\\n退出码：' + status.trim()
+            return
+          }
+          this.scriptResultText = (output || '脚本正在运行…') + '\\n\\n运行中…'
+        }
+        this.scriptRunning = false
+        this.scriptResultText += '\\n\\n等待超时；脚本可能仍在后台运行。'
+      } catch (e) {
+        this.scriptRunning = false
+        this.scriptResultText = '启动或读取结果失败：' + (e && e.message ? e.message : e)
       }
     },
     async refreshShare() {
