@@ -84,7 +84,7 @@ static void task_worker(const char *path, int install, const char *log_path,
                         const char *status_path)
 {
     int logfd = open(log_path, O_WRONLY | O_CREAT | O_TRUNC, 0600);
-    int pipefd[2], code = 126, status;
+    int code = 126, status;
     pid_t child;
     struct stat st;
 
@@ -165,6 +165,13 @@ static JSValue start_task(JSContext *ctx, const char *path, int install)
         if (second < 0) { polled_error = errno; (void)write(fds[1], &polled_error, sizeof(polled_error)); _exit(1); }
         if (second > 0) { (void)write(fds[1], &second, sizeof(second)); _exit(0); }
         close(fds[1]);
+        {
+            struct sigaction sa;
+            memset(&sa, 0, sizeof(sa));
+            sa.sa_handler = SIG_DFL;
+            sigemptyset(&sa.sa_mask);
+            (void)sigaction(SIGCHLD, &sa, NULL);
+        }
         if (make_paths(getpid(), log_path, sizeof(log_path), status_path, sizeof(status_path)) != 0)
             _exit(1);
         task_worker(path, install, log_path, status_path);
