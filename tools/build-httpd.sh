@@ -8,9 +8,9 @@ LIBS="$ROOT/libs"
 GLIBC="2.23"
 
 if command -v zig >/dev/null 2>&1; then
-  CC=(zig cc -target arm-linux-gnueabihf.$GLIBC)
+  CC=(zig cc -target arm-linux.$GLIBC-gnueabihf)
 elif python3 -c "import ziglang" >/dev/null 2>&1; then
-  CC=(python3 -m ziglang cc -target arm-linux-gnueabihf.$GLIBC)
+  CC=(python3 -m ziglang cc -target arm-linux.$GLIBC-gnueabihf)
 elif command -v arm-linux-gnueabihf-gcc >/dev/null 2>&1; then
   CC=(arm-linux-gnueabihf-gcc)
 else
@@ -41,10 +41,11 @@ chmod 755 "$LIBS/libhyperfile-updater.so"
 cp "$OUT/libjsapi_hyperfile_http.so" "$LIBS/libjsapi_hyperfile_http.so"
 
 echo "== Build native local operations JSAPI =="
-"${CC[@]}" -shared -fPIC -O2 -g0 -fvisibility=hidden \\
-  -I "$INC" "$ROOT/native/local_ops_plugin.c" \\
+"${CC[@]}" -shared -fPIC -O2 -g0 -fvisibility=hidden \
+  -I "$INC" "$ROOT/native/local_ops_plugin.c" \
   -o "$OUT/libjsapi_hyperfile_local_ops.so"
 cp "$OUT/libjsapi_hyperfile_local_ops.so" "$LIBS/libjsapi_hyperfile_local_ops.so"
+chmod 755 "$LIBS/libjsapi_hyperfile_local_ops.so"
 
 echo "== ELF checks =="
 readelf -h "$LIBS/libhyperfile-httpd.so" | grep -E 'Class:|Machine:'
