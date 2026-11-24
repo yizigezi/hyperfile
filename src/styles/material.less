@@ -1,210 +1,634 @@
-// Material 3 Expressive visual language adapted from readex-nt PR #1.
-// X5 landscape viewport: 800 x 254. Icons are intentionally omitted.
-@primary: #c6a8ff;
-@on-primary: #32105f;
-@primary-container: #4b2b83;
-@on-primary-container: #f0e5ff;
-@secondary-container: #494154;
-@surface: #101116;
-@surface-container-low: #171820;
-@surface-container: #20212b;
-@surface-container-high: #2a2b36;
-@surface-container-highest: #353640;
-@on-surface: #f0edf6;
-@on-surface-variant: #c7c1d2;
-@outline-variant: #494653;
-@error: #ffb4ab;
+// Material 3 Expressive 视觉语言 —— 完全沿用 readex-nt 的组件词汇与形状语言，
+// 在其基准上整体放大约 1.2 倍（X5 横屏 800 × 254）。
+// 形状：大圆角卡片（24px）/ 圆形图标钮 / 胶囊按钮；色彩：tonal 分层。
+// 注意：Falcon/Weex 只支持单类选择器，设备相关规则不要写复合选择器。
+@import 'md-color.less';
+
+@font-face {
+  font-family: 'MiSans';
+  src: url('/assets/MiSans-Regular.ttf');
+}
 
 .app-page {
   width: 100%;
   height: 100%;
   flex-direction: column;
   background-color: @surface;
+  font-family: 'MiSans', sans-serif;
   position: relative;
 }
-.app-topbar {
-  width: 100%;
-  height: 54px;
-  padding: 5px 16px;
-  flex-direction: row;
-  align-items: center;
-}
-.app-title {
-  color: @on-surface;
-  font-size: 19px;
-  font-weight: bold;
-  margin-right: 18px;
-}
-.nav-segment {
-  height: 38px;
-  padding: 3px;
-  border-radius: 19px;
-  flex-direction: row;
-  align-items: center;
-  background-color: @surface-container;
-}
-.nav-item {
-  height: 32px;
-  min-width: 82px;
-  padding: 0 14px;
-  margin-right: 3px;
-  border-radius: 16px;
-  align-items: center;
-  justify-content: center;
-}
-.nav-item-active { background-color: @primary-container; }
-.nav-label { color: @on-surface-variant; font-size: 13px; }
-.nav-label-active { color: @on-primary-container; font-size: 13px; font-weight: bold; }
-.top-spacer { flex: 1; }
-.top-action {
-  height: 36px;
-  min-width: 58px;
-  padding: 0 14px;
-  border-radius: 18px;
+
+/* ---------- 通用形状控件（readex-nt 同款，放大 1.2×） ---------- */
+
+.icon-btn {
+  width: 52px;
+  height: 52px;
+  border-radius: 26px;
   align-items: center;
   justify-content: center;
   background-color: @surface-container-high;
 }
-.top-action-label { color: @on-surface; font-size: 13px; }
-.page-body { flex: 1; width: 100%; min-height: 0; }
-.local-toolbar {
-  height: 38px;
-  padding: 0 18px;
-  flex-direction: row;
+
+.icon-btn-accent {
+  width: 52px;
+  height: 52px;
+  border-radius: 26px;
   align-items: center;
-}
-.toolbar-action {
-  height: 30px;
-  padding: 0 12px;
-  border-radius: 15px;
   justify-content: center;
-  background-color: @surface-container-high;
-  margin-right: 10px;
+  background-color: @primary-container;
 }
-.toolbar-action-text { color: @on-surface; font-size: 12px; }
-.path-label {
-  flex: 1;
-  color: @on-surface-variant;
-  font-size: 12px;
-  text-overflow: ellipsis;
-  max-height: 17px;
+
+.material-icon {
+  width: 26px;
+  height: 26px;
+  object-fit: contain;
 }
-.entry-count { color: @on-surface-variant; font-size: 11px; margin-left: 8px; }
-.local-list-wrap { flex: 1; min-height: 0; padding: 0 16px; }
-.local-list { width: 100%; height: 100%; }
-.entry-list { width: 100%; flex-direction: column; }
-.entry-row {
-  width: 100%;
+
+.gap-left {
+  margin-left: 10px;
+}
+
+.pill-btn {
   height: 48px;
-  padding: 4px 9px;
-  margin-bottom: 4px;
-  border-radius: 14px;
+  padding: 0 24px;
+  border-radius: 24px;
   flex-direction: row;
-  align-items: center;
-  background-color: @surface-container;
-}
-.entry-type {
-  width: 48px;
-  height: 32px;
-  border-radius: 10px;
-  align-items: center;
-  justify-content: center;
-  background-color: @primary-container;
-}
-.entry-type-folder { background-color: @secondary-container; }
-.entry-type-label { color: @on-primary-container; font-size: 9px; font-weight: bold; }
-.entry-main { flex: 1; min-width: 0; margin-left: 10px; }
-.entry-name {
-  color: @on-surface;
-  font-size: 13px;
-  max-height: 18px;
-  text-overflow: ellipsis;
-}
-.entry-meta { color: @on-surface-variant; font-size: 10px; margin-top: 2px; }
-.entry-trailing {
-  height: 28px;
-  padding: 0 12px;
-  border-radius: 14px;
-  justify-content: center;
-  background-color: @primary-container;
-  margin-left: 8px;
-}
-.entry-action-label { color: @on-primary-container; font-size: 11px; font-weight: bold; }
-.local-footer { height: 22px; padding: 2px 18px 4px; }
-.footer-hint { color: @on-surface-variant; font-size: 10px; }
-.empty-state { width: 100%; height: 130px; align-items: center; justify-content: center; }
-.empty-text { color: @on-surface-variant; font-size: 13px; text-align: center; }
-.error-text { color: @error; font-size: 12px; text-align: center; }
-.share-layout { width: 100%; height: 100%; padding: 4px 18px 12px; flex-direction: row; }
-.share-main {
-  width: 42%;
-  padding: 2px 14px 0 0;
-  align-items: center;
-  border-right-width: 1px;
-  border-right-color: @outline-variant;
-}
-.section-heading { color: @on-surface; font-size: 16px; font-weight: bold; }
-.section-subtitle { color: @on-surface-variant; font-size: 10px; margin-top: 3px; text-align: center; }
-.share-card {
-  width: 92%;
-  min-height: 112px;
-  margin-top: 6px;
-  padding: 6px;
-  border-radius: 18px;
-  align-items: center;
-  justify-content: center;
-  background-color: @surface-container;
-}
-.share-address { color: @on-surface; font-size: 11px; margin-top: 3px; text-align: center; }
-.share-muted { color: @on-surface-variant; font-size: 10px; margin-top: 3px; }
-.primary-action {
-  height: 34px;
-  min-width: 142px;
-  padding: 0 18px;
-  margin-top: 7px;
-  border-radius: 17px;
   align-items: center;
   justify-content: center;
   background-color: @primary;
 }
-.action-stop { background-color: @surface-container-highest; }
-.primary-action-label { color: @on-primary; font-size: 12px; font-weight: bold; }
-.primary-action-label-stop { color: @on-surface; font-size: 12px; font-weight: bold; }
-.share-footnote { color: @on-surface-variant; font-size: 9px; margin-top: 5px; }
-.share-side { flex: 1; min-width: 0; padding-left: 14px; flex-direction: column; }
-.side-heading-row { width: 100%; flex-direction: row; align-items: center; justify-content: space-between; }
-.side-heading { color: @on-surface; font-size: 14px; font-weight: bold; }
-.side-path { color: @on-surface-variant; font-size: 10px; }
-.shared-files { width: 100%; flex: 1; margin-top: 6px; }
-.shared-file-row { width: 100%; padding: 7px 9px; margin-bottom: 3px; border-radius: 10px; background-color: @surface-container; }
-.shared-file-name { color: @on-surface; font-size: 11px; }
-.shared-empty { padding: 18px 0; align-items: center; }
-.side-footnote { color: @on-surface-variant; font-size: 9px; margin-top: 4px; }
-.settings-scroll { width: 100%; height: 100%; }
-.settings-content { padding: 4px 20px 12px; }
-.settings-card { width: 100%; margin-top: 7px; padding: 2px 14px; border-radius: 18px; background-color: @surface-container; }
-.setting-line { min-height: 44px; flex-direction: row; align-items: center; justify-content: space-between; }
-.setting-copy { flex: 1; min-width: 0; }
-.setting-name { color: @on-surface; font-size: 12px; font-weight: bold; }
-.setting-description { color: @on-surface-variant; font-size: 10px; margin-top: 2px; }
-.setting-value { color: @on-surface-variant; font-size: 10px; margin-left: 10px; }
-.setting-divider { height: 1px; background-color: @outline-variant; }
-.settings-section-heading { margin-top: 12px; }
-.setting-button { min-height: 45px; flex-direction: row; align-items: center; justify-content: space-between; }
-.setting-chevron { color: @primary; font-size: 11px; margin-left: 12px; }
-.settings-note { color: @on-surface-variant; font-size: 10px; margin-top: 10px; }
-.settings-version { color: @on-surface-variant; font-size: 9px; margin-top: 4px; }
+
+.pill-btn-ghost {
+  height: 48px;
+  padding: 0 24px;
+  border-radius: 24px;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  background-color: @surface-container-high;
+}
+
+.pill-text {
+  color: @on-primary;
+  font-size: 17px;
+  font-weight: bold;
+}
+
+.pill-text-ghost {
+  color: @on-surface;
+  font-size: 17px;
+  font-weight: bold;
+}
+
+/* 分段按钮（M3 segmented buttons） */
+.segment {
+  height: 44px;
+  border-radius: 22px;
+  flex-direction: row;
+  align-items: center;
+  background-color: @surface-container;
+  padding: 3px;
+}
+
+.segment-item {
+  height: 38px;
+  padding: 0 18px;
+  border-radius: 19px;
+  align-items: center;
+  justify-content: center;
+  margin-right: 4px;
+}
+
+.segment-item-active {
+  height: 38px;
+  padding: 0 18px;
+  border-radius: 19px;
+  align-items: center;
+  justify-content: center;
+  background-color: @primary-container;
+  margin-right: 4px;
+}
+
+.segment-text {
+  color: @on-surface-variant;
+  font-size: 16px;
+}
+
+.segment-text-active {
+  color: @on-primary-container;
+  font-size: 16px;
+  font-weight: bold;
+}
+
+/* ---------- 顶栏：标题 + 分段 + 路径 + 图标钮（readex-nt 结构） ---------- */
+
+.app-topbar {
+  width: 100%;
+  height: 58px;
+  padding: 6px 16px;
+  flex-direction: row;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.app-title {
+  color: @on-surface;
+  font-size: 22px;
+  font-weight: bold;
+  margin-right: 16px;
+}
+
+.nav-segment {
+  height: 44px;
+  border-radius: 22px;
+  flex-direction: row;
+  align-items: center;
+  background-color: @surface-container;
+  padding: 3px;
+}
+
+.nav-item {
+  height: 38px;
+  min-width: 96px;
+  padding: 0 16px;
+  margin-right: 4px;
+  border-radius: 19px;
+  align-items: center;
+  justify-content: center;
+}
+
+.nav-item-active {
+  height: 38px;
+  min-width: 96px;
+  padding: 0 16px;
+  margin-right: 4px;
+  border-radius: 19px;
+  align-items: center;
+  justify-content: center;
+  background-color: @primary-container;
+}
+
+.nav-label {
+  color: @on-surface-variant;
+  font-size: 16px;
+}
+
+.nav-label-active {
+  color: @on-primary-container;
+  font-size: 16px;
+  font-weight: bold;
+}
+
+.path-label {
+  color: @on-surface-variant;
+  font-size: 14px;
+  margin-left: 12px;
+  flex: 1;
+  max-width: 360px;
+  text-overflow: ellipsis;
+  max-height: 20px;
+}
+
+.entry-count {
+  color: @on-surface-variant;
+  font-size: 13px;
+  margin-left: 10px;
+}
+
+.top-spacer {
+  flex: 1;
+}
+
+/* ---------- 页面主体 ---------- */
+
+.page-body {
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+}
+
+.local-page,
+.share-page,
+.settings-body {
+  min-height: 0;
+  flex-direction: column;
+}
+
+.local-status {
+  flex: 1;
+  min-height: 0;
+  align-items: center;
+  justify-content: center;
+}
+
+.empty-text {
+  color: @on-surface-variant;
+  font-size: 18px;
+  text-align: center;
+}
+
+.error-text {
+  color: @error;
+  font-size: 15px;
+  text-align: center;
+}
+
+/* ---------- 横向卡片书架（readex-nt file-card，放大 1.2×） ---------- */
+
+.local-shelf,
+.share-shelf,
+.settings-shelf {
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+  margin-top: 10px;
+  padding: 0 16px;
+  flex-direction: row;
+}
+
+.local-file-card {
+  width: 184px;
+  height: 176px;
+  flex-shrink: 0;
+  margin-right: 12px;
+  padding: 12px;
+  border-radius: 24px;
+  background-color: @surface-container;
+  flex-direction: column;
+}
+
+.local-card-cover {
+  width: 100%;
+  height: 64px;
+  border-radius: 16px;
+  background-color: @primary-container;
+  align-items: center;
+  justify-content: center;
+}
+
+.local-card-folder {
+  width: 100%;
+  height: 64px;
+  border-radius: 16px;
+  background-color: @secondary-container;
+  align-items: center;
+  justify-content: center;
+}
+
+.local-card-icon {
+  width: 34px;
+  height: 34px;
+  object-fit: contain;
+}
+
+.local-card-name {
+  color: @on-surface;
+  font-size: 16px;
+  font-weight: bold;
+  margin-top: 9px;
+  max-height: 22px;
+  text-overflow: ellipsis;
+}
+
+.local-card-meta {
+  color: @on-surface-variant;
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+.local-footer-hint {
+  height: 24px;
+  padding: 2px 18px 4px;
+  color: @on-surface-variant;
+  font-size: 12px;
+}
+
+/* ---------- 文件共享 ---------- */
+
+.share-shelf {
+  margin-top: 0;
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+
+.share-feature-card,
+.share-directory-card,
+.share-info-card {
+  height: 180px;
+  flex-shrink: 0;
+  margin-right: 12px;
+  padding: 12px 14px;
+  border-radius: 24px;
+  background-color: @surface-container;
+  flex-direction: column;
+}
+
+.share-feature-card {
+  width: 322px;
+  align-items: center;
+}
+
+.share-directory-card {
+  width: 258px;
+}
+
+.share-info-card {
+  width: 196px;
+}
+
+.section-heading {
+  color: @on-surface;
+  font-size: 18px;
+  font-weight: bold;
+}
+
+.section-subtitle {
+  color: @on-surface-variant;
+  font-size: 12px;
+  margin-top: 4px;
+  text-align: center;
+}
+
+.share-qr-panel {
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+  margin-top: 6px;
+  border-radius: 16px;
+  background-color: @surface-container-low;
+  align-items: center;
+  justify-content: center;
+}
+
+.share-address {
+  color: @on-surface;
+  font-size: 13px;
+  margin-top: 4px;
+  text-align: center;
+  max-width: 290px;
+  text-overflow: ellipsis;
+}
+
+.share-muted {
+  color: @on-surface-variant;
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+.primary-action {
+  height: 48px;
+  min-width: 170px;
+  padding: 0 24px;
+  margin-top: 8px;
+  border-radius: 24px;
+  align-items: center;
+  justify-content: center;
+  background-color: @primary;
+}
+
+.action-stop {
+  height: 48px;
+  min-width: 170px;
+  padding: 0 24px;
+  margin-top: 8px;
+  border-radius: 24px;
+  align-items: center;
+  justify-content: center;
+  background-color: @surface-container-highest;
+}
+
+.primary-action-label {
+  color: @on-primary;
+  font-size: 17px;
+  font-weight: bold;
+}
+
+.primary-action-label-stop {
+  color: @on-surface;
+  font-size: 17px;
+  font-weight: bold;
+}
+
+.share-footnote {
+  color: @on-surface-variant;
+  font-size: 11px;
+  margin-top: 5px;
+}
+
+.share-directory-path {
+  color: @on-surface-variant;
+  font-size: 11px;
+  margin-top: 5px;
+  max-height: 16px;
+  text-overflow: ellipsis;
+}
+
+.share-file-summary {
+  flex-direction: row;
+  align-items: baseline;
+  margin-top: 5px;
+}
+
+.share-file-count {
+  color: @primary;
+  font-size: 26px;
+  font-weight: bold;
+}
+
+.share-file-count-label {
+  color: @on-surface-variant;
+  font-size: 12px;
+  margin-left: 5px;
+}
+
+.shared-files {
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+  margin-top: 4px;
+}
+
+.shared-file-row {
+  width: 100%;
+  padding: 6px 9px;
+  margin-bottom: 4px;
+  border-radius: 12px;
+  background-color: @surface-container-low;
+  flex-direction: row;
+  align-items: center;
+}
+
+.shared-file-icon {
+  width: 22px;
+  height: 22px;
+  margin-right: 8px;
+  flex-shrink: 0;
+  object-fit: contain;
+}
+
+.shared-file-name {
+  color: @on-surface;
+  font-size: 14px;
+  flex: 1;
+  text-overflow: ellipsis;
+  max-height: 20px;
+}
+
+.shared-empty {
+  padding: 18px 0;
+  align-items: center;
+}
+
+.side-footnote {
+  color: @on-surface-variant;
+  font-size: 11px;
+  margin-top: 5px;
+}
+
+.share-info-label {
+  color: @on-surface-variant;
+  font-size: 12px;
+  margin-top: 10px;
+}
+
+.share-info-value {
+  color: @on-surface;
+  font-size: 15px;
+  font-weight: bold;
+  margin-top: 3px;
+}
+
+/* ---------- 设置 ---------- */
+
+.settings-shelf {
+  margin-top: 0;
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+
+.settings-card {
+  height: 180px;
+  flex-shrink: 0;
+  margin: 0 12px 0 0;
+  padding: 14px;
+  border-radius: 24px;
+  background-color: @surface-container;
+  flex-direction: column;
+}
+
+.settings-card-wide {
+  width: 310px;
+}
+
+.settings-card-actions {
+  width: 260px;
+}
+
+.settings-card-about {
+  width: 250px;
+}
+
+.setting-line {
+  min-height: 42px;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.setting-copy {
+  flex: 1;
+  min-width: 0;
+}
+
+.setting-name {
+  color: @on-surface;
+  font-size: 15px;
+  font-weight: bold;
+}
+
+.setting-description {
+  color: @on-surface-variant;
+  font-size: 12px;
+  margin-top: 3px;
+}
+
+.setting-value {
+  color: @on-surface-variant;
+  font-size: 12px;
+  margin-left: 10px;
+}
+
+.setting-divider {
+  height: 1px;
+  background-color: @outline-variant;
+}
+
+.setting-path-value {
+  color: @primary;
+  font-size: 12px;
+  max-height: 18px;
+  text-overflow: ellipsis;
+  margin: 2px 0 6px;
+}
+
+.setting-action-card {
+  flex: 1;
+  min-height: 0;
+  margin-top: 8px;
+  padding: 10px;
+  border-radius: 16px;
+  background-color: @surface-container-high;
+  flex-direction: column;
+}
+
+.setting-chevron {
+  color: @primary;
+  font-size: 13px;
+  font-weight: bold;
+  align-self: flex-end;
+  margin-top: 4px;
+}
+
+.settings-about-title {
+  color: @on-surface;
+  font-size: 20px;
+  font-weight: bold;
+  margin-top: 10px;
+}
+
+.settings-version {
+  color: @on-surface-variant;
+  font-size: 12px;
+  margin-top: 8px;
+}
+
+.settings-note {
+  color: @on-surface-variant;
+  font-size: 12px;
+  margin-top: 8px;
+  line-height: 18px;
+}
+
+/* ---------- Toast ---------- */
+
 .toast {
   position: absolute;
-  left: 28%;
-  right: 28%;
-  bottom: 7px;
-  padding: 7px 12px;
-  border-radius: 12px;
+  left: 26%;
+  right: 26%;
+  bottom: 10px;
+  padding: 9px 16px;
+  border-radius: 16px;
   align-items: center;
   background-color: @surface-container-highest;
 }
-.toast-text { color: @on-surface; font-size: 11px; }
+
+.toast-text {
+  color: @on-surface;
+  font-size: 14px;
+}
+
+/* ---------- 对话框（readex-nt rename-dialog 语言，放大 1.2×） ---------- */
+
 .dialog-mask {
   position: absolute;
   left: 0;
@@ -214,282 +638,161 @@
   z-index: 30;
   align-items: center;
   justify-content: center;
-  background-color: rgba(0, 0, 0, 0.55);
+  background-color: rgba(0, 0, 0, 0.45);
 }
+
 .dialog-card {
-  width: 390px;
-  padding: 18px;
-  border-radius: 24px;
+  width: 460px;
+  padding: 22px;
+  border-radius: 28px;
   background-color: @surface-container-high;
+  flex-direction: column;
 }
-.dialog-title { color: @on-surface; font-size: 17px; font-weight: bold; margin-bottom: 8px; }
-.dialog-description { color: @on-surface-variant; font-size: 12px; line-height: 18px; }
-.dialog-path { color: @primary; font-size: 11px; margin-top: 8px; }
-.dialog-actions { width: 100%; margin-top: 14px; flex-direction: row; justify-content: flex-end; }
+
+.dialog-title {
+  color: @on-surface;
+  font-size: 20px;
+  font-weight: bold;
+  margin-bottom: 10px;
+}
+
+.dialog-description {
+  color: @on-surface-variant;
+  font-size: 15px;
+  line-height: 22px;
+}
+
+.dialog-path {
+  color: @primary;
+  font-size: 14px;
+  margin-top: 10px;
+  max-height: 20px;
+  text-overflow: ellipsis;
+}
+
+.dialog-actions {
+  width: 100%;
+  margin-top: 16px;
+  flex-direction: row;
+  justify-content: flex-end;
+}
+
 .dialog-button {
-  height: 36px;
-  min-width: 72px;
-  padding: 0 14px;
-  margin-left: 8px;
-  border-radius: 18px;
+  height: 46px;
+  min-width: 92px;
+  padding: 0 20px;
+  margin-left: 10px;
+  border-radius: 23px;
   align-items: center;
   justify-content: center;
   background-color: @surface-container-highest;
 }
-.dialog-button-primary { background-color: @primary; }
-.dialog-button-label { color: @on-surface; font-size: 12px; font-weight: bold; }
-.dialog-button-primary-label { color: @on-primary; }
-.diagnostics-card { height: 224px; }
-.diagnostics-scroll { width: 100%; flex: 1; }
-.diagnostic-row { padding: 5px 2px; border-bottom-width: 1px; border-bottom-color: @outline-variant; }
-.diagnostic-label { color: @primary; font-size: 10px; }
-.diagnostic-value { color: @on-surface; font-size: 10px; margin-top: 2px; }
 
-
-/* Horizontal card shelves follow readex-nt's native scroller pattern.
-   The scroller component owns touch gestures; CSS overflow is intentionally not used. */
-.local-page,
-.share-page,
-.settings-body {
-  min-height: 0;
-  flex-direction: column;
-}
-.local-toolbar {
-  flex-shrink: 0;
-}
-.local-status {
-  flex: 1;
-  min-height: 0;
-  align-items: center;
-  justify-content: center;
-}
-.local-shelf,
-.share-shelf,
-.settings-shelf {
-  width: 100%;
-  flex: 1;
-  min-height: 0;
-  margin-top: 6px;
-  padding: 0 16px;
-  flex-direction: row;
-}
-.local-file-card {
-  width: 156px;
-  height: 154px;
-  flex-shrink: 0;
-  margin-right: 10px;
-  padding: 10px;
-  border-radius: 20px;
-  background-color: @surface-container;
-  flex-direction: column;
-}
-.local-card-cover {
-  width: 100%;
-  height: 54px;
-  border-radius: 14px;
-  background-color: @primary-container;
-  align-items: center;
-  justify-content: center;
-}
-.local-card-folder { background-color: @secondary-container; }
-.local-card-type {
-  color: @on-primary-container;
-  font-size: 11px;
-  font-weight: bold;
-}
-.local-card-name {
-  color: @on-surface;
-  font-size: 12px;
-  font-weight: bold;
-  margin-top: 8px;
-  max-height: 34px;
-  text-overflow: ellipsis;
-}
-.local-card-meta {
-  color: @on-surface-variant;
-  font-size: 10px;
-  margin-top: 3px;
-}
-.local-card-install {
-  height: 24px;
-  min-width: 76px;
-  padding: 0 10px;
-  margin-top: 6px;
-  border-radius: 12px;
+.dialog-button-primary {
+  height: 46px;
+  min-width: 92px;
+  padding: 0 20px;
+  margin-left: 10px;
+  border-radius: 23px;
   align-items: center;
   justify-content: center;
   background-color: @primary;
 }
-.local-card-install-text {
-  color: @on-primary;
-  font-size: 10px;
+
+.dialog-button-label {
+  color: @on-surface;
+  font-size: 16px;
   font-weight: bold;
 }
-.local-footer-hint {
-  height: 16px;
-  padding: 0 18px;
-  color: @on-surface-variant;
-  font-size: 9px;
+
+.dialog-button-primary-label {
+  color: @on-primary;
+  font-size: 16px;
+  font-weight: bold;
 }
-.share-shelf {
-  margin-top: 0;
-  padding-top: 8px;
-  padding-bottom: 8px;
+
+/* 文件操作对话框 */
+.file-actions-card {
+  width: 500px;
 }
-.share-feature-card,
-.share-directory-card,
-.share-info-card {
-  height: 174px;
-  flex-shrink: 0;
-  margin-right: 10px;
-  padding: 10px 12px;
-  border-radius: 20px;
-  background-color: @surface-container;
-  flex-direction: column;
-}
-.share-feature-card { width: 278px; align-items: center; }
-.share-directory-card { width: 224px; }
-.share-info-card { width: 164px; }
-.share-qr-panel {
-  flex: 1;
-  width: 100%;
-  min-height: 0;
-  margin-top: 5px;
-  border-radius: 12px;
-  background-color: @surface-container-low;
-  align-items: center;
-  justify-content: center;
-}
-.share-feature-card .section-heading,
-.share-directory-card .section-heading,
-.share-info-card .section-heading { font-size: 14px; }
-.share-feature-card .section-subtitle { margin-top: 2px; }
-.share-feature-card .primary-action { margin-top: 5px; height: 29px; min-height: 29px; }
-.share-feature-card .share-footnote { margin-top: 3px; }
-.share-address { max-width: 250px; text-overflow: ellipsis; }
-.share-directory-path {
-  color: @on-surface-variant;
-  font-size: 9px;
-  margin-top: 4px;
-  max-height: 14px;
+
+.file-actions-title {
+  font-size: 18px;
+  max-height: 26px;
   text-overflow: ellipsis;
 }
-.share-file-summary {
-  flex-direction: row;
-  align-items: baseline;
-  margin-top: 4px;
+
+.file-actions-meta {
+  font-size: 13px;
 }
-.share-file-count { color: @primary; font-size: 20px; font-weight: bold; }
-.share-file-count-label { color: @on-surface-variant; font-size: 10px; margin-left: 4px; }
-.shared-files { width: 100%; flex: 1; min-height: 0; margin-top: 3px; }
-.shared-file-row { padding: 4px 7px; margin-bottom: 3px; }
-.shared-file-name { max-height: 14px; text-overflow: ellipsis; }
-.share-directory-card .side-footnote { margin-top: 3px; }
-.share-info-label { color: @on-surface-variant; font-size: 10px; margin-top: 9px; }
-.share-info-value { color: @on-surface; font-size: 12px; font-weight: bold; margin-top: 2px; }
-.settings-shelf {
-  margin-top: 0;
-  padding-top: 8px;
-  padding-bottom: 8px;
-}
-.settings-card {
-  height: 174px;
-  flex-shrink: 0;
-  margin: 0 10px 0 0;
-  padding: 12px;
-  border-radius: 20px;
-  background-color: @surface-container;
-  flex-direction: column;
-}
-.settings-card-wide { width: 258px; }
-.settings-card-actions { width: 218px; }
-.settings-card-about { width: 208px; }
-.settings-card .section-heading { font-size: 14px; margin-bottom: 5px; }
-.settings-card .setting-line { min-height: 36px; }
-.setting-path-value {
+
+.file-actions-section {
   color: @on-surface-variant;
-  font-size: 9px;
-  max-height: 14px;
-  text-overflow: ellipsis;
-  margin: 1px 0 5px;
-}
-.setting-action-card {
-  flex: 1;
-  min-height: 0;
-  margin-top: 6px;
-  padding: 8px;
-  border-radius: 14px;
-  background-color: @surface-container-high;
-  flex-direction: column;
-}
-.setting-action-card .setting-description { margin-top: 3px; }
-.setting-action-card .setting-chevron {
-  align-self: flex-end;
-  margin-top: 3px;
-}
-.settings-about-title {
-  color: @on-surface;
-  font-size: 17px;
+  font-size: 14px;
   font-weight: bold;
   margin-top: 12px;
 }
-.settings-card-about .settings-version { margin-top: 8px; }
-.settings-card-about .settings-note { margin-top: 8px; line-height: 14px; }
 
-
-.script-output {
-  color: @on-surface;
-  font-size: 10px;
-  line-height: 14px;
-  white-space: pre-wrap;
-}
-
-
-/* Unified file action sheet: readable on the 800x254 landscape display. */
-.file-actions-card {
-  width: 500px;
-  max-height: 224px;
-  padding: 14px 18px;
-}
-.file-actions-title {
-  max-width: 455px;
-  max-height: 24px;
-  font-size: 19px;
-  text-overflow: ellipsis;
-  margin-bottom: 3px;
-}
-.file-actions-meta {
-  font-size: 13px;
-  margin-bottom: 7px;
-}
-.file-actions-section {
-  color: @primary;
-  font-size: 14px;
-  font-weight: bold;
-  margin: 3px 0 5px;
-}
 .file-action-row {
   width: 100%;
-  min-height: 48px;
-  padding: 6px 12px;
-  margin-top: 5px;
-  border-radius: 13px;
-  background-color: @surface-container-highest;
+  padding: 11px 13px;
+  margin-top: 8px;
+  border-radius: 16px;
+  background-color: @surface-container;
   flex-direction: column;
-  justify-content: center;
 }
+
 .file-action-name {
   color: @on-surface;
   font-size: 15px;
   font-weight: bold;
 }
+
 .file-action-description {
   color: @on-surface-variant;
-  font-size: 11px;
-  margin-top: 2px;
+  font-size: 12px;
+  margin-top: 3px;
 }
+
 .file-actions-empty {
   color: @on-surface-variant;
   font-size: 13px;
-  padding: 12px 4px;
+  margin-top: 12px;
+}
+
+/* 诊断与脚本输出 */
+.diagnostics-card {
+  height: 248px;
+}
+
+.diagnostics-scroll {
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+  margin-top: 6px;
+}
+
+.diagnostic-row {
+  padding: 6px 2px;
+  border-bottom-width: 1px;
+  border-bottom-color: @outline-variant;
+}
+
+.diagnostic-label {
+  color: @primary;
+  font-size: 12px;
+  font-weight: bold;
+}
+
+.diagnostic-value {
+  color: @on-surface;
+  font-size: 12px;
+  margin-top: 3px;
+}
+
+.script-output {
+  color: @on-surface;
+  font-size: 13px;
+  line-height: 19px;
+  white-space: pre-wrap;
 }

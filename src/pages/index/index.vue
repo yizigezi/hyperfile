@@ -13,24 +13,22 @@
           <text :class="page === 'settings' ? 'nav-label nav-label-active' : 'nav-label'">设置</text>
         </div>
       </div>
+      <text class="path-label" v-if="page === 'local'">{{ currentPath }}</text>
+      <text class="entry-count" v-if="page === 'local'">{{ entries.length }} 项</text>
       <div class="top-spacer"></div>
-      <div class="top-action" v-if="page === 'local'" @click="refreshLocal">
-        <text class="top-action-label">刷新</text>
+      <div class="icon-btn" v-if="page === 'local' && currentPath !== '/'" @click="goParent">
+        <image class="material-icon" src="/assets/icons/arrow_upward.png" />
       </div>
-      <div class="top-action" v-if="page === 'share'" @click="refreshShare">
-        <text class="top-action-label">刷新</text>
+      <div class="icon-btn gap-left" v-if="page === 'local'" @click="refreshLocal">
+        <image class="material-icon" src="/assets/icons/refresh.png" />
+      </div>
+      <div class="icon-btn gap-left" v-if="page === 'share'" @click="refreshShare">
+        <image class="material-icon" src="/assets/icons/refresh.png" />
       </div>
     </div>
 
-    <!-- 本地文件：readex-nt 风格的横向卡片书架 -->
+    <!-- 本地文件：readex-nt 横向卡片书架 -->
     <div class="page-body local-page" v-if="page === 'local'">
-      <div class="local-toolbar">
-        <div class="toolbar-action" @click="goParent" v-if="currentPath !== '/'">
-          <text class="toolbar-action-text">上一级</text>
-        </div>
-        <text class="path-label">{{ currentPath }}</text>
-        <text class="entry-count">{{ entries.length }} 项</text>
-      </div>
       <div v-if="localLoading || localError || entries.length === 0" class="local-status">
         <text v-if="localLoading" class="empty-text">正在读取目录…</text>
         <text v-else-if="localError" class="error-text">{{ localError }}</text>
@@ -38,8 +36,8 @@
       </div>
       <scroller v-else class="local-shelf" :style="{flexDirection: 'row'}" scroll-direction="horizontal" show-scrollbar="false">
         <div class="local-file-card" v-for="entry in entries" :key="entry.path" @click="openLocalEntry(entry)">
-          <div :class="entry.isDirectory ? 'local-card-cover local-card-folder' : 'local-card-cover'">
-            <text class="local-card-type">{{ entry.isDirectory ? '文件夹' : (entry.extension || '文件') }}</text>
+          <div :class="entry.isDirectory ? 'local-card-folder' : 'local-card-cover'">
+            <image class="local-card-icon" :src="iconFor(entry)" />
           </div>
           <text class="local-card-name">{{ entry.name }}</text>
           <text class="local-card-meta">{{ entry.isDirectory ? '打开目录' : formatSize(entry.size) }}</text>
@@ -55,7 +53,7 @@
           <text class="section-heading">Wi-Fi 文件共享</text>
           <text class="section-subtitle">{{ running ? '手机或电脑连接同一 Wi-Fi 后扫码访问' : '启动服务后，通过浏览器传输和管理文件' }}</text>
           <div class="share-qr-panel">
-            <FlQrcode v-if="running && qrUrl" :text="qrUrl" :size="88" />
+            <FlQrcode v-if="running && qrUrl" :text="qrUrl" :size="104" />
             <text class="share-address" v-if="running">{{ qrUrl }}</text>
             <text class="share-muted" v-if="running && updateToken">更新验证码：{{ updateToken }}</text>
             <text class="share-muted" v-if="!running">服务尚未启动</text>
@@ -77,6 +75,7 @@
               <text class="empty-text">目录暂无文件</text>
             </div>
             <div class="shared-file-row" v-for="f in files" :key="f">
+              <image class="shared-file-icon" :src="iconForName(f)" />
               <text class="shared-file-name">{{ f }}</text>
             </div>
           </scroller>
@@ -286,6 +285,32 @@ function normalizePath(path) {
 
 function joinPath(parent, name) {
   return (parent === '/' ? '' : parent) + '/' + name
+}
+
+// 扩展名 → assets/icons 图标名（readex-nt 做法：随 AMR 打包的 Material PNG）
+const EXT_ICONS = {
+  PDF: 'pdf',
+  TXT: 'text', MD: 'text', LOG: 'text', NOTE: 'text', SRT: 'text', INI: 'text', CFG: 'text', CONF: 'text',
+  DOC: 'doc', DOCX: 'doc', RTF: 'doc', ODT: 'doc', WPS: 'doc',
+  XLS: 'sheet', XLSX: 'sheet', CSV: 'sheet', ODS: 'sheet',
+  PPT: 'slides', PPTX: 'slides', ODP: 'slides',
+  JPG: 'image', JPEG: 'image', PNG: 'image', GIF: 'image', WEBP: 'image', BMP: 'image', SVG: 'image', ICO: 'image',
+  MP3: 'audio', WAV: 'audio', FLAC: 'audio', AAC: 'audio', M4A: 'audio', OGG: 'audio', WMA: 'audio', MID: 'audio',
+  MP4: 'video', MKV: 'video', AVI: 'video', MOV: 'video', FLV: 'video', WMV: 'video', WEBM: 'video', '3GP': 'video', RMVB: 'video',
+  ZIP: 'archive', RAR: 'archive', '7Z': 'archive', TAR: 'archive', GZ: 'archive', TGZ: 'archive', BZ2: 'archive', XZ: 'archive',
+  APK: 'apk',
+  AMR: 'package',
+  SH: 'code', JS: 'code', PY: 'code', C: 'code', CPP: 'code', H: 'code', JAVA: 'code', TS: 'code',
+  JSON: 'code', XML: 'code', YML: 'code', YAML: 'code', CSS: 'code', LUA: 'code', SQL: 'code',
+  HTML: 'web', HTM: 'web', URL: 'web'
+}
+
+function iconPathForName(name, directory) {
+  if (directory) return '/assets/icons/folder.png'
+  const value = String(name || '')
+  const dot = value.lastIndexOf('.')
+  const ext = dot > 0 ? value.slice(dot + 1).toUpperCase() : ''
+  return '/assets/icons/' + (EXT_ICONS[ext] || 'file') + '.png'
 }
 
 export default {
@@ -588,6 +613,12 @@ export default {
       } catch (e) {
         this.showToast('诊断失败：' + (e && e.message ? e.message : e))
       }
+    },
+    iconFor(entry) {
+      return iconPathForName(entry && entry.name, !!(entry && entry.isDirectory))
+    },
+    iconForName(name) {
+      return iconPathForName(name, false)
     }
   }
 }
