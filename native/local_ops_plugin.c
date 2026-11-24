@@ -9,6 +9,7 @@
 #include <fcntl.h>
 #include <limits.h>
 #include <signal.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -144,26 +145,92 @@ done:
     _exit(0);
 }
 
+#define TASK_HANDSHAKE_MAGIC 0x4846544bU
+
+typedef struct {
+    uint32_t magic;
+    int32_t error;
+    pid_t worker;
+} task_handshake;
+
+static int write_full(int fd, const void *buffer, size_t length)
+{
+    const char *p = (const char *)buffer;
+    size_t offset = 0;
+    while (offset < length) {
+        ssize_t n = write(fd, p + offset, length - offset);
+        if (n < 0 && errno == EINTR) continue;
+        if (n <= 0) return -1;
+        offset += (size_t)n;
+    }
+    return 0;
+}
+
+/* Returns 1 for a complete record, 0 for clean EOF, and -1 for an error. */
+static int read_full(int fd, void *buffer, size_t length)
+{
+    char *p = (char *)buffer;
+    size_t offset = 0;
+    while (offset < length) {
+        ssize_t n = read(fd, p + offset, length - offset);
+        if (n < 0 && errno == EINTR) continue;
+        if (n < 0) return -1;
+        if (n == 0) {
+            if (offset == 0) return 0;
+            errno = EIO;
+            return -1;
+        }
+        offset += (size_t)n;
+    }
+    return 1;
+}
+
+static void send_handshake(int fd, int error, pid_t worker)
+{
+    task_handshake message;
+    message.magic = TASK_HANDSHAKE_MAGIC;
+    message.error = error;
+    message.worker = worker;
+    (void)write_full(fd, &message, sizeof(message));
+}
+
 static JSValue start_task(JSContext *ctx, const char *path, int install)
 {
-    int fds[2], polled_error = 0;
-    pid_t first, worker = -1;
-    ssize_t n;
-    char log_path[PATH_MAX], status_path[PATH_MAX];
+    int fds[2], read_result, saved_error;
+    pid_t first;
+    task_handshake message;
+    char log_path[PATH_MAX], status_path[PATH_MAX], task_id[32];
+
     if (!path || !path[0]) return rejected_promise(ctx, "invalid path", EINVAL);
-    if (pipe(fds) != 0) return rejected_promise(ctx, "pipe", errno);
+    if (pipe(fds) != 0) {
+        saved_error = errno;
+        return rejected_promise(ctx, "pipe", saved_error);
+    }
     first = fork();
     if (first < 0) {
-        int saved = errno; close(fds[0]); close(fds[1]);
-        return rejected_promise(ctx, "fork", saved);
+        saved_error = errno;
+        close(fds[0]);
+        close(fds[1]);
+        return rejected_promise(ctx, "fork", saved_error);
     }
     if (first == 0) {
         pid_t second;
         close(fds[0]);
-        if (setsid() < 0) { polled_error = errno; (void)write(fds[1], &polled_error, sizeof(polled_error)); _exit(1); }
+        if (setsid() < 0) {
+            saved_error = errno;
+            send_handshake(fds[1], saved_error, -1);
+            _exit(1);
+        }
         second = fork();
-        if (second < 0) { polled_error = errno; (void)write(fds[1], &polled_error, sizeof(polled_error)); _exit(1); }
-        if (second > 0) { (void)write(fds[1], &second, sizeof(second)); _exit(0); }
+        if (second < 0) {
+            saved_error = errno;
+            send_handshake(fds[1], saved_error, -1);
+            _exit(1);
+        }
+        if (second > 0) {
+            send_handshake(fds[1], 0, second);
+            _exit(0);
+        }
         close(fds[1]);
         {
             struct sigaction sa;
@@ -176,20 +243,29 @@ static JSValue start_task(JSContext *ctx, const char *path, int install)
             _exit(1);
         task_worker(path, install, log_path, status_path);
     }
+
     close(fds[1]);
-    do { n = read(fds[0], &worker, sizeof(worker)); } while (n < 0 && errno == EINTR);
-    if (n == (ssize_t)sizeof(int)) {
-        close(fds[0]);
-        return rejected_promise(ctx, "start task", (int)worker);
-    }
+    read_result = read_full(fds[0], &message, sizeof(message));
+    saved_error = errno;
     close(fds[0]);
-    if (n != (ssize_t)sizeof(pid_t) || worker <= 0)
-        return rejected_promise(ctx, "start task handshake", EIO);
+    if (read_result != 1) {
+        return rejected_promise(ctx, "start task handshake",
+                                read_result < 0 ? saved_error : EIO);
+    }
+    if (message.magic != TASK_HANDSHAKE_MAGIC) {
+        return rejected_promise(ctx, "start task handshake", EPROTO);
+    }
+    if (message.error != 0) {
+        return rejected_promise(ctx, "start task", message.error);
+    }
+    if (message.worker <= 1) {
+        return rejected_promise(ctx, "start task handshake", EPROTO);
+    }
+
+    snprintf(task_id, sizeof(task_id), "%ld", (long)message.worker);
     {
         JSValue result = JS_NewObject(ctx);
-        JS_SetPropertyStr(ctx, result, "taskId", JS_NewString(ctx, ({
-            static char id[32]; snprintf(id, sizeof(id), "%ld", (long)worker); id;
-        })));
+        JS_SetPropertyStr(ctx, result, "taskId", JS_NewString(ctx, task_id));
         return resolved(ctx, result);
     }
 }
