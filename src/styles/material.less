@@ -443,3 +443,53 @@
   line-height: 14px;
   white-space: pre-wrap;
 }
+
+
+/* Unified file action sheet: readable on the 800x254 landscape display. */
+.file-actions-card {
+  width: 500px;
+  max-height: 224px;
+  padding: 14px 18px;
+}
+.file-actions-title {
+  max-width: 455px;
+  max-height: 24px;
+  font-size: 19px;
+  text-overflow: ellipsis;
+  margin-bottom: 3px;
+}
+.file-actions-meta {
+  font-size: 13px;
+  margin-bottom: 7px;
+}
+.file-actions-section {
+  color: @primary;
+  font-size: 14px;
+  font-weight: bold;
+  margin: 3px 0 5px;
+}
+.file-action-row {
+  width: 100%;
+  min-height: 48px;
+  padding: 6px 12px;
+  margin-top: 5px;
+  border-radius: 13px;
+  background-color: @surface-container-highest;
+  flex-direction: column;
+  justify-content: center;
+}
+.file-action-name {
+  color: @on-surface;
+  font-size: 15px;
+  font-weight: bold;
+}
+.file-action-description {
+  color: @on-surface-variant;
+  font-size: 11px;
+  margin-top: 2px;
+}
+.file-actions-empty {
+  color: @on-surface-variant;
+  font-size: 13px;
+  padding: 12px 4px;
+}
