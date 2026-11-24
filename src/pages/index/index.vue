@@ -43,12 +43,6 @@
           </div>
           <text class="local-card-name">{{ entry.name }}</text>
           <text class="local-card-meta">{{ entry.isDirectory ? '打开目录' : formatSize(entry.size) }}</text>
-          <div class="local-card-install" v-if="!entry.isDirectory && entry.extension === 'AMR'">
-            <text class="local-card-install-text">安装 AMR</text>
-          </div>
-          <div class="local-card-install" v-if="!entry.isDirectory && entry.extension === 'SH'">
-            <text class="local-card-install-text">运行脚本</text>
-          </div>
         </div>
       </scroller>
       <text class="local-footer-hint">设备文件系统 · 支持浏览目录与安装 AMR</text>
@@ -154,6 +148,28 @@
 
     <div class="toast" v-if="toast">
       <text class="toast-text">{{ toast }}</text>
+    </div>
+
+    <div class="dialog-mask" v-if="showFileActions">
+      <div class="dialog-card file-actions-card">
+        <text class="dialog-title file-actions-title">{{ selectedEntry ? selectedEntry.name : '' }}</text>
+        <text class="dialog-description file-actions-meta">{{ selectedEntry ? (selectedEntry.isDirectory ? '文件夹' : (selectedEntry.extension || '文件') + ' · ' + formatSize(selectedEntry.size)) : '' }}</text>
+        <text class="file-actions-section">打开方式</text>
+        <div class="file-action-row" v-if="selectedEntry && !selectedEntry.isDirectory && selectedEntry.extension === 'AMR'" @click="selectOpenWith('amr')">
+          <text class="file-action-name">安装 AMR 应用</text>
+          <text class="file-action-description">使用 miniapp_cli 安装应用包</text>
+        </div>
+        <div class="file-action-row" v-if="selectedEntry && !selectedEntry.isDirectory && selectedEntry.extension === 'SH'" @click="selectOpenWith('shell')">
+          <text class="file-action-name">运行 Shell 脚本</text>
+          <text class="file-action-description">通过原生任务执行器运行脚本</text>
+        </div>
+        <text class="file-actions-empty" v-if="selectedEntry && !selectedEntry.isDirectory && selectedEntry.extension !== 'AMR' && selectedEntry.extension !== 'SH'">暂无可用的打开方式</text>
+        <div class="dialog-actions">
+          <div class="dialog-button" @click="showFileActions = false">
+            <text class="dialog-button-label">关闭</text>
+          </div>
+        </div>
+      </div>
     </div>
 
     <div class="dialog-mask" v-if="showInstallConfirm">
@@ -293,6 +309,8 @@ export default {
       showSetupConfirm: false,
       showDiagnostics: false,
       diagnosticLines: [],
+      showFileActions: false,
+      selectedEntry: null,
       showInstallConfirm: false,
       pendingInstallPath: '',
       showScriptConfirm: false,
@@ -374,17 +392,20 @@ export default {
         this.refreshLocal()
         return
       }
-      if (entry.extension === 'AMR') {
+      this.selectedEntry = entry
+      this.showFileActions = true
+    },
+    selectOpenWith(type) {
+      const entry = this.selectedEntry
+      if (!entry || !entry.path) return
+      this.showFileActions = false
+      if (type === 'amr') {
         this.pendingInstallPath = entry.path
         this.showInstallConfirm = true
-        return
-      }
-      if (entry.extension === 'SH') {
+      } else if (type === 'shell') {
         this.pendingScriptPath = entry.path
         this.showScriptConfirm = true
-        return
       }
-      this.showToast('暂不支持打开此格式文件')
     },
     async InstallLocalAmr() {
       const path = this.pendingInstallPath
