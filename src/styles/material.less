@@ -286,7 +286,7 @@
   font-size: 16px;
   font-weight: bold;
   margin-top: 9px;
-  max-height: 22px;
+  max-height: 44px;
   text-overflow: ellipsis;
 }
 
@@ -297,10 +297,7 @@
 }
 
 .local-footer-hint {
-  height: 24px;
-  padding: 2px 18px 4px;
-  color: @on-surface-variant;
-  font-size: 12px;
+  display: none;
 }
 
 /* ---------- 文件共享 ---------- */
@@ -350,9 +347,9 @@
 }
 
 .share-qr-panel {
-  flex: 1;
   width: 100%;
-  min-height: 0;
+  height: 116px;
+  min-height: 116px;
   margin-top: 6px;
   border-radius: 16px;
   background-color: @surface-container-low;
@@ -795,4 +792,94 @@
   font-size: 13px;
   line-height: 19px;
   white-space: pre-wrap;
+}
+
+/* ---------- 卡片内纵向滚动（内容超出卡片高度时可滑） ---------- */
+
+.card-scroll {
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+}
+
+/* ---------- 文本阅读器 ---------- */
+
+.reader-card {
+  width: 720px;
+  height: 236px;
+  padding: 10px 14px 6px;
+  border-radius: 24px;
+  background-color: @surface-container-high;
+  flex-direction: column;
+}
+
+.reader-bar {
+  width: 100%;
+  height: 42px;
+  flex-shrink: 0;
+  flex-direction: row;
+  align-items: center;
+}
+
+.reader-title {
+  color: @on-surface;
+  font-size: 16px;
+  font-weight: bold;
+  flex: 1;
+  text-overflow: ellipsis;
+  max-height: 22px;
+}
+
+.reader-size-btn {
+  width: 42px;
+  height: 42px;
+  border-radius: 21px;
+  margin-left: 8px;
+  align-items: center;
+  justify-content: center;
+  background-color: @primary-container;
+}
+
+.reader-size-label {
+  color: @on-primary-container;
+  font-size: 15px;
+  font-weight: bold;
+}
+
+.reader-close {
+  height: 42px;
+  min-width: 76px;
+  padding: 0 16px;
+  margin-left: 8px;
+  border-radius: 21px;
+  align-items: center;
+  justify-content: center;
+  background-color: @surface-container-highest;
+}
+
+.reader-close-label {
+  color: @on-surface;
+  font-size: 15px;
+  font-weight: bold;
+}
+
+.reader-scroll {
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+  margin-top: 4px;
+}
+
+.reader-text {
+  width: 100%;
+  color: @on-surface;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.reader-hint {
+  color: @on-surface-variant;
+  font-size: 11px;
+  margin-top: 4px;
+  height: 16px;
 }

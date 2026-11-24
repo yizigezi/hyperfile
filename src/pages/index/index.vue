@@ -36,41 +36,44 @@
       </div>
       <scroller v-else class="local-shelf" :style="{flexDirection: 'row'}" scroll-direction="horizontal" show-scrollbar="false">
         <div class="local-file-card" v-for="entry in entries" :key="entry.path" @click="openLocalEntry(entry)">
-          <div :class="entry.isDirectory ? 'local-card-folder' : 'local-card-cover'">
-            <image class="local-card-icon" :src="iconFor(entry)" />
-          </div>
-          <text class="local-card-name">{{ entry.name }}</text>
-          <text class="local-card-meta">{{ entry.isDirectory ? '打开目录' : formatSize(entry.size) }}</text>
+          <scroller class="card-scroll" scroll-y="true" show-scrollbar="false">
+            <div :class="entry.isDirectory ? 'local-card-folder' : 'local-card-cover'">
+              <image class="local-card-icon" :src="iconFor(entry)" />
+            </div>
+            <text class="local-card-name">{{ entry.name }}</text>
+            <text class="local-card-meta">{{ entry.isDirectory ? '打开目录' : formatSize(entry.size) }}</text>
+          </scroller>
         </div>
       </scroller>
-      <text class="local-footer-hint">设备文件系统 · 支持浏览目录与安装 AMR</text>
     </div>
 
     <!-- 文件共享：服务与共享目录均为横向卡片 -->
     <div class="page-body share-page" v-else-if="page === 'share'">
       <scroller class="share-shelf" :style="{flexDirection: 'row'}" scroll-direction="horizontal" show-scrollbar="false">
         <div class="share-feature-card">
-          <text class="section-heading">Wi-Fi 文件共享</text>
-          <text class="section-subtitle">{{ running ? '手机或电脑连接同一 Wi-Fi 后扫码访问' : '启动服务后，通过浏览器传输和管理文件' }}</text>
-          <div class="share-qr-panel">
-            <FlQrcode v-if="running && qrUrl" :text="qrUrl" :size="104" />
-            <text class="share-address" v-if="running">{{ qrUrl }}</text>
-            <text class="share-muted" v-if="running && updateToken">更新验证码：{{ updateToken }}</text>
-            <text class="share-muted" v-if="!running">服务尚未启动</text>
-          </div>
-          <div :class="running ? 'primary-action action-stop' : 'primary-action'" @click="Toggle">
-            <text :class="running ? 'primary-action-label-stop' : 'primary-action-label'">{{ running ? '停止共享服务' : (initialized ? '启动共享服务' : '初始化并启动') }}</text>
-          </div>
-          <text class="share-footnote">网页端支持上传、下载、复制、删除和 AMR 安装</text>
+          <scroller class="card-scroll" scroll-y="true" show-scrollbar="false">
+            <text class="section-heading">Wi-Fi 文件共享</text>
+            <text class="section-subtitle">{{ running ? '手机或电脑连接同一 Wi-Fi 后扫码访问' : '启动服务后，通过浏览器传输和管理文件' }}</text>
+            <div class="share-qr-panel">
+              <FlQrcode v-if="running && qrUrl" :text="qrUrl" :size="104" />
+              <text class="share-address" v-if="running">{{ qrUrl }}</text>
+              <text class="share-muted" v-if="running && updateToken">更新验证码：{{ updateToken }}</text>
+              <text class="share-muted" v-if="!running">服务尚未启动</text>
+            </div>
+            <div :class="running ? 'primary-action action-stop' : 'primary-action'" @click="Toggle">
+              <text :class="running ? 'primary-action-label-stop' : 'primary-action-label'">{{ running ? '停止共享服务' : (initialized ? '启动共享服务' : '初始化并启动') }}</text>
+            </div>
+            <text class="share-footnote">网页端支持上传、下载、复制、删除和 AMR 安装</text>
+          </scroller>
         </div>
         <div class="share-directory-card">
-          <text class="section-heading">共享目录</text>
-          <text class="share-directory-path">/userdisk/Favorite/HyperFile</text>
-          <div class="share-file-summary">
-            <text class="share-file-count">{{ files.length }}</text>
-            <text class="share-file-count-label">个文件</text>
-          </div>
-          <scroller class="shared-files" scroll-direction="vertical" show-scrollbar="false">
+          <scroller class="card-scroll" scroll-y="true" show-scrollbar="false">
+            <text class="section-heading">共享目录</text>
+            <text class="share-directory-path">/userdisk/Favorite/HyperFile</text>
+            <div class="share-file-summary">
+              <text class="share-file-count">{{ files.length }}</text>
+              <text class="share-file-count-label">个文件</text>
+            </div>
             <div v-if="files.length === 0" class="shared-empty">
               <text class="empty-text">目录暂无文件</text>
             </div>
@@ -78,17 +81,19 @@
               <image class="shared-file-icon" :src="iconForName(f)" />
               <text class="shared-file-name">{{ f }}</text>
             </div>
+            <text class="side-footnote">完整文件操作请在浏览器文件管理器中进行</text>
           </scroller>
-          <text class="side-footnote">完整文件操作请在浏览器文件管理器中进行</text>
         </div>
         <div class="share-info-card">
-          <text class="section-heading">连接信息</text>
-          <text class="share-info-label">服务状态</text>
-          <text class="share-info-value">{{ running ? '运行中' : '已停止' }}</text>
-          <text class="share-info-label">监听端口</text>
-          <text class="share-info-value">8080</text>
-          <text class="share-info-label">累计接收</text>
-          <text class="share-info-value">{{ formatSize(received) }}</text>
+          <scroller class="card-scroll" scroll-y="true" show-scrollbar="false">
+            <text class="section-heading">连接信息</text>
+            <text class="share-info-label">服务状态</text>
+            <text class="share-info-value">{{ running ? '运行中' : '已停止' }}</text>
+            <text class="share-info-label">监听端口</text>
+            <text class="share-info-value">8080</text>
+            <text class="share-info-label">累计接收</text>
+            <text class="share-info-value">{{ formatSize(received) }}</text>
+          </scroller>
         </div>
       </scroller>
     </div>
@@ -97,56 +102,84 @@
     <div class="page-body settings-body" v-else>
       <scroller class="settings-shelf" :style="{flexDirection: 'row'}" scroll-direction="horizontal" show-scrollbar="false">
         <div class="settings-card settings-card-wide">
-          <text class="section-heading">设备与服务</text>
-          <div class="setting-line">
-            <div class="setting-copy">
-              <text class="setting-name">HTTP 文件共享服务</text>
-              <text class="setting-description">{{ running ? '独立服务正在运行' : '当前已停止' }}</text>
+          <scroller class="card-scroll" scroll-y="true" show-scrollbar="false">
+            <text class="section-heading">设备与服务</text>
+            <div class="setting-line">
+              <div class="setting-copy">
+                <text class="setting-name">HTTP 文件共享服务</text>
+                <text class="setting-description">{{ running ? '独立服务正在运行' : '当前已停止' }}</text>
+              </div>
+              <text class="setting-value">{{ running ? '运行中' : '已停止' }}</text>
             </div>
-            <text class="setting-value">{{ running ? '运行中' : '已停止' }}</text>
-          </div>
-          <div class="setting-divider"></div>
-          <div class="setting-line">
-            <div class="setting-copy">
-              <text class="setting-name">服务目录</text>
-              <text class="setting-description">独立 HTTP 服务程序与运行日志</text>
+            <div class="setting-divider"></div>
+            <div class="setting-line">
+              <div class="setting-copy">
+                <text class="setting-name">服务目录</text>
+                <text class="setting-description">独立 HTTP 服务程序与运行日志</text>
+              </div>
             </div>
-          </div>
-          <text class="setting-path-value">/userdisk/HyperFile</text>
-          <div class="setting-divider"></div>
-          <div class="setting-line">
-            <div class="setting-copy">
-              <text class="setting-name">共享目录</text>
-              <text class="setting-description">浏览器文件管理器的根目录</text>
+            <text class="setting-path-value">/userdisk/HyperFile</text>
+            <div class="setting-divider"></div>
+            <div class="setting-line">
+              <div class="setting-copy">
+                <text class="setting-name">共享目录</text>
+                <text class="setting-description">浏览器文件管理器的根目录</text>
+              </div>
             </div>
-          </div>
-          <text class="setting-path-value">/userdisk/Favorite/HyperFile</text>
+            <text class="setting-path-value">/userdisk/Favorite/HyperFile</text>
+          </scroller>
         </div>
         <div class="settings-card settings-card-actions">
-          <text class="section-heading">设备维护</text>
-          <div class="setting-action-card" @click="EnableADB">
-            <text class="setting-name">打开 ADB</text>
-            <text class="setting-description">启用设备的 ADB 调试标记</text>
-            <text class="setting-chevron">执行</text>
-          </div>
-          <div class="setting-action-card" @click="RunDiagnostics">
-            <text class="setting-name">HTTP 服务诊断</text>
-            <text class="setting-description">检查程序文件、启动状态与运行日志</text>
-            <text class="setting-chevron">查看</text>
-          </div>
+          <scroller class="card-scroll" scroll-y="true" show-scrollbar="false">
+            <text class="section-heading">设备维护</text>
+            <div class="setting-action-card" @click="EnableADB">
+              <text class="setting-name">打开 ADB</text>
+              <text class="setting-description">启用设备的 ADB 调试标记</text>
+              <text class="setting-chevron">执行</text>
+            </div>
+            <div class="setting-action-card" @click="RunDiagnostics">
+              <text class="setting-name">HTTP 服务诊断</text>
+              <text class="setting-description">检查程序文件、启动状态与运行日志</text>
+              <text class="setting-chevron">查看</text>
+            </div>
+          </scroller>
         </div>
         <div class="settings-card settings-card-about">
-          <text class="section-heading">关于 HyperFile</text>
-          <text class="settings-about-title">HyperFile</text>
-          <text class="setting-description">词典笔本地文件与网络共享管理</text>
-          <text class="settings-version">版本 0.1.0</text>
-          <text class="settings-note">当前支持目录浏览、AMR 安装与 Wi-Fi 文件共享。</text>
+          <scroller class="card-scroll" scroll-y="true" show-scrollbar="false">
+            <text class="section-heading">关于 HyperFile</text>
+            <text class="settings-about-title">HyperFile</text>
+            <text class="setting-description">词典笔本地文件与网络共享管理</text>
+            <text class="settings-version">版本 0.1.0</text>
+            <text class="settings-note">当前支持目录浏览、文本阅读、AMR 安装与 Wi-Fi 文件共享。</text>
+          </scroller>
         </div>
       </scroller>
     </div>
 
     <div class="toast" v-if="toast">
       <text class="toast-text">{{ toast }}</text>
+    </div>
+
+    <!-- 文本阅读器 -->
+    <div class="dialog-mask" v-if="showReader">
+      <div class="reader-card">
+        <div class="reader-bar">
+          <text class="reader-title">{{ readerTitle }}</text>
+          <div class="reader-size-btn" @click="changeReaderFont(-2)">
+            <text class="reader-size-label">A−</text>
+          </div>
+          <div class="reader-size-btn" @click="changeReaderFont(2)">
+            <text class="reader-size-label">A+</text>
+          </div>
+          <div class="reader-close" @click="showReader = false">
+            <text class="reader-close-label">关闭</text>
+          </div>
+        </div>
+        <scroll class="reader-scroll" scroll-y="true">
+          <text class="reader-text" :style="{ fontSize: readerFontSize + 'px', lineHeight: (readerFontSize + 9) + 'px' }">{{ readerText }}</text>
+        </scroll>
+        <text class="reader-hint">当前字号 {{ readerFontSize }}px · A− / A+ 调整</text>
+      </div>
     </div>
 
     <div class="dialog-mask" v-if="showFileActions">
@@ -313,6 +346,14 @@ function iconPathForName(name, directory) {
   return '/assets/icons/' + (EXT_ICONS[ext] || 'file') + '.png'
 }
 
+// 可用内置阅读器打开的文本类扩展名
+const TEXT_EXTS = {
+  TXT: 1, MD: 1, LOG: 1, NOTE: 1, SRT: 1, INI: 1, CFG: 1, CONF: 1,
+  JSON: 1, XML: 1, YML: 1, YAML: 1, CSV: 1,
+  SH: 1, JS: 1, PY: 1, C: 1, CPP: 1, H: 1, JAVA: 1, TS: 1, CSS: 1, LUA: 1, SQL: 1,
+  HTML: 1, HTM: 1
+}
+
 export default {
   name: 'index',
   components: { FlQrcode },
@@ -335,6 +376,10 @@ export default {
       showDiagnostics: false,
       diagnosticLines: [],
       showFileActions: false,
+      showReader: false,
+      readerTitle: '',
+      readerText: '',
+      readerFontSize: 16,
       selectedEntry: null,
       showInstallConfirm: false,
       pendingInstallPath: '',
@@ -417,8 +462,32 @@ export default {
         this.refreshLocal()
         return
       }
+      if (this.canRead(entry)) {
+        this.openReader(entry)
+        return
+      }
       this.selectedEntry = entry
       this.showFileActions = true
+    },
+    canRead(entry) {
+      return !!(entry && !entry.isDirectory && TEXT_EXTS[entry.extension])
+    },
+    async openReader(entry) {
+      this.readerTitle = entry.name
+      this.readerText = '正在读取…'
+      this.showReader = true
+      try {
+        const text = await fs.readFile(entry.path)
+        this.readerText = typeof text === 'string' && text ? text : (text ? String(text) : '（空文件）')
+      } catch (e) {
+        this.readerText = '读取失败：' + (e && e.message ? e.message : e)
+      }
+    },
+    changeReaderFont(delta) {
+      let size = this.readerFontSize + delta
+      if (size < 12) size = 12
+      if (size > 32) size = 32
+      this.readerFontSize = size
     },
     selectOpenWith(type) {
       const entry = this.selectedEntry
