@@ -187,6 +187,10 @@
         <text class="dialog-title file-actions-title">{{ selectedEntry ? selectedEntry.name : '' }}</text>
         <text class="dialog-description file-actions-meta">{{ selectedEntry ? (selectedEntry.isDirectory ? '文件夹' : (selectedEntry.extension || '文件') + ' · ' + formatSize(selectedEntry.size)) : '' }}</text>
         <text class="file-actions-section">打开方式</text>
+        <div class="file-action-row" v-if="selectedEntry && !selectedEntry.isDirectory" @click="selectOpenWith('read')">
+          <text class="file-action-name">文本阅读器</text>
+          <text class="file-action-description">按文本打开文件，可调整字号</text>
+        </div>
         <div class="file-action-row" v-if="selectedEntry && !selectedEntry.isDirectory && selectedEntry.extension === 'AMR'" @click="selectOpenWith('amr')">
           <text class="file-action-name">安装 AMR 应用</text>
           <text class="file-action-description">使用 miniapp_cli 安装应用包</text>
@@ -195,7 +199,6 @@
           <text class="file-action-name">运行 Shell 脚本</text>
           <text class="file-action-description">通过原生任务执行器运行脚本</text>
         </div>
-        <text class="file-actions-empty" v-if="selectedEntry && !selectedEntry.isDirectory && selectedEntry.extension !== 'AMR' && selectedEntry.extension !== 'SH'">暂无可用的打开方式</text>
         <div class="dialog-actions">
           <div class="dialog-button" @click="showFileActions = false">
             <text class="dialog-button-label">关闭</text>
@@ -493,7 +496,9 @@ export default {
       const entry = this.selectedEntry
       if (!entry || !entry.path) return
       this.showFileActions = false
-      if (type === 'amr') {
+      if (type === 'read') {
+        this.openReader(entry)
+      } else if (type === 'amr') {
         this.pendingInstallPath = entry.path
         this.showInstallConfirm = true
       } else if (type === 'shell') {
