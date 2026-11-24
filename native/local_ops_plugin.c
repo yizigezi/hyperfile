@@ -127,9 +127,21 @@ static void task_worker(const char *path, int install, const char *log_path,
         goto done;
     }
     if (child == 0) {
-        if (install) execlp("miniapp_cli", "miniapp_cli", "install", path, (char *)NULL);
-        else execl(path, path, (char *)NULL);
-        dprintf(STDERR_FILENO, "exec failed: %s\n", strerror(errno));
+        if (install) {
+            execlp("miniapp_cli", "miniapp_cli", "install", path, (char *)NULL);
+        } else {
+            /*
+             * Scripts without a valid executable header (often no shebang)
+             * fail execve() with ENOEXEC. Interpret only that case with sh.
+             * Other errors, including a missing shebang interpreter, remain
+             * visible as their original errno.
+             */
+            execl(path, path, (char *)NULL);
+            if (errno == ENOEXEC) {
+                execl("/bin/sh", "sh", path, (char *)NULL);
+            }
+        }
+        dprintf(STDERR_FILENO, "exec failed: %s\\n", strerror(errno));
         _exit(127);
     }
     while (waitpid(child, &status, 0) < 0) {
