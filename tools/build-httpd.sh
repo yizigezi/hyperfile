@@ -8,9 +8,9 @@ LIBS="$ROOT/libs"
 GLIBC="2.23"
 
 if command -v zig >/dev/null 2>&1; then
-  CC=(zig cc -target arm-linux.$GLIBC-gnueabihf)
+  CC=(zig cc -target arm-linux-gnueabihf.$GLIBC)
 elif python3 -c "import ziglang" >/dev/null 2>&1; then
-  CC=(python3 -m ziglang cc -target arm-linux.$GLIBC-gnueabihf)
+  CC=(python3 -m ziglang cc -target arm-linux-gnueabihf.$GLIBC)
 elif command -v arm-linux-gnueabihf-gcc >/dev/null 2>&1; then
   CC=(arm-linux-gnueabihf-gcc)
 else
