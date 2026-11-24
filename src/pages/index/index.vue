@@ -36,13 +36,11 @@
       </div>
       <scroller v-else class="local-shelf" :style="{flexDirection: 'row'}" scroll-direction="horizontal" show-scrollbar="false">
         <div class="local-file-card" v-for="entry in entries" :key="entry.path" @click="openLocalEntry(entry)">
-          <scroller class="card-scroll" scroll-y="true" show-scrollbar="false">
-            <div :class="entry.isDirectory ? 'local-card-folder' : 'local-card-cover'">
-              <image class="local-card-icon" :src="iconFor(entry)" />
-            </div>
-            <text class="local-card-name">{{ entry.name }}</text>
-            <text class="local-card-meta">{{ entry.isDirectory ? '打开目录' : formatSize(entry.size) }}</text>
-          </scroller>
+          <div :class="entry.isDirectory ? 'local-card-folder' : 'local-card-cover'">
+            <image class="local-card-icon" :src="iconFor(entry)" />
+          </div>
+          <text class="local-card-name">{{ entry.name }}</text>
+          <text class="local-card-meta">{{ entry.isDirectory ? '打开目录' : formatSize(entry.size) }}</text>
         </div>
       </scroller>
     </div>
