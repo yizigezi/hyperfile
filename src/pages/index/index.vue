@@ -158,36 +158,15 @@
       <text class="toast-text">{{ toast }}</text>
     </div>
 
-    <!-- 文本阅读器 -->
-    <div class="dialog-mask" v-if="showReader">
-      <div class="reader-card">
-        <div class="reader-bar">
-          <text class="reader-title">{{ readerTitle }}</text>
-          <div class="reader-size-btn" @click="changeReaderFont(-2)">
-            <text class="reader-size-label">A−</text>
-          </div>
-          <div class="reader-size-btn" @click="changeReaderFont(2)">
-            <text class="reader-size-label">A+</text>
-          </div>
-          <div class="reader-close" @click="showReader = false">
-            <text class="reader-close-label">关闭</text>
-          </div>
-        </div>
-        <scroll class="reader-scroll" scroll-y="true">
-          <text class="reader-text" :style="{ fontSize: readerFontSize + 'px', lineHeight: (readerFontSize + 9) + 'px' }">{{ readerText }}</text>
-        </scroll>
-        <text class="reader-hint">当前字号 {{ readerFontSize }}px · A− / A+ 调整</text>
-      </div>
-    </div>
-
     <div class="dialog-mask" v-if="showFileActions">
       <div class="dialog-card file-actions-card">
         <text class="dialog-title file-actions-title">{{ selectedEntry ? selectedEntry.name : '' }}</text>
         <text class="dialog-description file-actions-meta">{{ selectedEntry ? (selectedEntry.isDirectory ? '文件夹' : (selectedEntry.extension || '文件') + ' · ' + formatSize(selectedEntry.size)) : '' }}</text>
+        <scroll class="file-actions-scroll" scroll-y="true">
         <text class="file-actions-section">打开方式</text>
-        <div class="file-action-row" v-if="selectedEntry && !selectedEntry.isDirectory" @click="selectOpenWith('read')">
+        <div class="file-action-row" v-if="selectedEntry && !selectedEntry.isDirectory && textExtensions[selectedEntry.extension]" @click="selectOpenWith('read')">
           <text class="file-action-name">文本阅读器</text>
-          <text class="file-action-description">按文本打开文件，可调整字号</text>
+          <text class="file-action-description">在独立页面阅读，可滚动并调整字号</text>
         </div>
         <div class="file-action-row" v-if="selectedEntry && !selectedEntry.isDirectory && selectedEntry.extension === 'AMR'" @click="selectOpenWith('amr')">
           <text class="file-action-name">安装 AMR 应用</text>
@@ -197,6 +176,7 @@
           <text class="file-action-name">运行 Shell 脚本</text>
           <text class="file-action-description">通过原生任务执行器运行脚本</text>
         </div>
+        </scroll>
         <div class="dialog-actions">
           <div class="dialog-button" @click="showFileActions = false">
             <text class="dialog-button-label">关闭</text>
@@ -290,6 +270,7 @@
 
 <script>
 import FlQrcode from 'falcon-ui/src/packages/qr-code/index.vue'
+import router from '@system.router'
 import { fs } from '../../utils/FileSystem/FileSystem.js'
 
 const UPLOAD_DIR = '/userdisk/Favorite/HyperFile'
@@ -377,11 +358,8 @@ export default {
       showDiagnostics: false,
       diagnosticLines: [],
       showFileActions: false,
-      showReader: false,
-      readerTitle: '',
-      readerText: '',
-      readerFontSize: 16,
       selectedEntry: null,
+      textExtensions: TEXT_EXTS,
       showInstallConfirm: false,
       pendingInstallPath: '',
       showScriptConfirm: false,
@@ -463,32 +441,14 @@ export default {
         this.refreshLocal()
         return
       }
-      if (this.canRead(entry)) {
-        this.openReader(entry)
-        return
-      }
       this.selectedEntry = entry
       this.showFileActions = true
     },
-    canRead(entry) {
-      return !!(entry && !entry.isDirectory && TEXT_EXTS[entry.extension])
-    },
-    async openReader(entry) {
-      this.readerTitle = entry.name
-      this.readerText = '正在读取…'
-      this.showReader = true
-      try {
-        const text = await fs.readFile(entry.path)
-        this.readerText = typeof text === 'string' && text ? text : (text ? String(text) : '（空文件）')
-      } catch (e) {
-        this.readerText = '读取失败：' + (e && e.message ? e.message : e)
-      }
-    },
-    changeReaderFont(delta) {
-      let size = this.readerFontSize + delta
-      if (size < 12) size = 12
-      if (size > 32) size = 32
-      this.readerFontSize = size
+    openReader(entry) {
+      router.push({
+        uri: 'pages/reader/reader',
+        params: { path: entry.path, name: entry.name }
+      })
     },
     selectOpenWith(type) {
       const entry = this.selectedEntry
