@@ -6,8 +6,9 @@ class App extends $falcon.App {
   }
 
   onLaunch(options) {
-    super.onLaunch(options)
+    // Register the page class before Falcon initializes the initial route.
     $falcon.useDefaultBasePageClass(BasePage)
+    super.onLaunch(options)
   }
 
   onShow() {
