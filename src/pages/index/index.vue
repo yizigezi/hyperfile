@@ -176,6 +176,7 @@
           <text class="file-action-name">运行 Shell 脚本</text>
           <text class="file-action-description">通过原生任务执行器运行脚本</text>
         </div>
+        <text class="file-actions-empty" v-if="selectedEntry && !selectedEntry.isDirectory && !textExtensions[selectedEntry.extension] && selectedEntry.extension !== 'AMR' && selectedEntry.extension !== 'SH'">暂无可用打开方式</text>
         </scroll>
         <div class="dialog-actions">
           <div class="dialog-button" @click="showFileActions = false">
