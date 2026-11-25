@@ -9,10 +9,6 @@
   src: url('/assets/MiSans-Regular.ttf');
 }
 
-.reader-page {
-  font-family: 'MiSans', sans-serif;
-}
-
 .app-page {
   width: 100%;
   height: 100%;
@@ -909,6 +905,100 @@
   color: @on-surface;
   white-space: pre-wrap;
   word-break: break-all;
+}
+
+/* ---------- 独立文本阅读器页面 ---------- */
+
+.reader-page {
+  width: 100%;
+  height: 100%;
+  padding: 8px 14px;
+  background-color: @surface;
+  flex-direction: column;
+}
+
+.reader-back {
+  width: 42px;
+  height: 42px;
+  margin-right: 10px;
+  border-radius: 21px;
+  align-items: center;
+  justify-content: center;
+  background-color: @surface-container-high;
+}
+
+.reader-back-icon {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+}
+
+.reader-bar {
+  width: 100%;
+  height: 42px;
+  flex-shrink: 0;
+  flex-direction: row;
+  align-items: center;
+}
+
+.reader-title {
+  color: @on-surface;
+  font-size: 16px;
+  font-weight: bold;
+  flex: 1;
+  text-overflow: ellipsis;
+  max-height: 22px;
+}
+
+.reader-size-btn {
+  width: 42px;
+  height: 42px;
+  border-radius: 21px;
+  margin-left: 8px;
+  align-items: center;
+  justify-content: center;
+  background-color: @primary-container;
+}
+
+.reader-size-label {
+  color: @on-primary-container;
+  font-size: 15px;
+  font-weight: bold;
+}
+
+.reader-close {
+  height: 42px;
+  min-width: 76px;
+  padding: 0 16px;
+  margin-left: 8px;
+  border-radius: 21px;
+  align-items: center;
+  justify-content: center;
+  background-color: @surface-container-highest;
+}
+
+.reader-close-label {
+  color: @on-surface;
+  font-size: 15px;
+  font-weight: bold;
+}
+
+.reader-scroll {
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+  margin-top: 4px;
+}
+
+.reader-text {
+  width: 100%;
+  color: @on-surface;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.reader-page {
+  font-family: 'MiSans', sans-serif;
 }
 
 .reader-page-controls {
