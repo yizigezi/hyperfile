@@ -178,7 +178,7 @@
         </div>
         <text class="file-actions-empty" v-if="selectedEntry && !selectedEntry.isDirectory && !textExtensions[selectedEntry.extension] && selectedEntry.extension !== 'AMR' && selectedEntry.extension !== 'SH'">暂无可用打开方式</text>
         </scroll>
-        <div class="dialog-actions">
+        <div class="dialog-actions file-actions-actions">
           <div class="dialog-button" @click="showFileActions = false">
             <text class="dialog-button-label">关闭</text>
           </div>
