@@ -271,8 +271,8 @@
 
 <script>
 import FlQrcode from 'falcon-ui/src/packages/qr-code/index.vue'
-import router from '@system.router'
 import { fs } from '../../utils/FileSystem/FileSystem.js'
+import { setReaderTarget } from '../../utils/ReaderSession.js'
 
 const UPLOAD_DIR = '/userdisk/Favorite/HyperFile'
 const PORT = 8080
@@ -446,10 +446,8 @@ export default {
       this.showFileActions = true
     },
     openReader(entry) {
-      router.push({
-        uri: 'pages/reader/reader',
-        params: { path: entry.path, name: entry.name }
-      })
+      setReaderTarget(entry.path, entry.name)
+      $falcon.navTo('reader')
     },
     selectOpenWith(type) {
       const entry = this.selectedEntry

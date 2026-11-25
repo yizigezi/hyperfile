@@ -93,9 +93,9 @@
 </template>
 
 <script>
-import router from '@system.router'
 import { fs } from '../../utils/FileSystem/FileSystem.js'
 import { buildPages, chapterIndexOf } from '../../utils/JsPagination.js'
+import { getReaderTarget } from '../../utils/ReaderSession.js'
 
 // readex-nt 阅读页几何（800 × 254 横屏）
 const TEXT_WIDTH = 624
@@ -118,11 +118,13 @@ export default {
       tocVisible: false
     }
   },
-  onInit(options) {
-    const params = options || {}
-    this.filePath = params.path || ''
-    this.readerTitle = params.name || this.filePath.split('/').pop() || '文本阅读器'
-    this.loadText()
+  onShow() {
+    const target = getReaderTarget()
+    if (target.path && target.path !== this.filePath) {
+      this.filePath = target.path
+      this.readerTitle = target.name || target.path.split('/').pop() || '文本阅读器'
+      this.loadText()
+    }
   },
   computed: {
     textStyle() {
@@ -214,7 +216,7 @@ export default {
       if (this.mode === 'paged') this.repaginate()
     },
     goBack() {
-      router.back()
+      this.$page.finish()
     }
   }
 }
