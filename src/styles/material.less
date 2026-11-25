@@ -817,94 +817,230 @@
   min-height: 0;
 }
 
-/* ---------- 独立文本阅读器页面 ---------- */
+/* ---------- 文本阅读器（readex-nt 移植，800×254 几何） ----------
+   左轨 68 / 右轨 76 / 文本区 624×230，与 JsPagination 的分页参数一致 */
 
 .reader-page {
   width: 100%;
   height: 100%;
-  padding: 8px 14px;
-  background-color: @surface;
-  flex-direction: column;
-}
-
-.reader-back {
-  width: 42px;
-  height: 42px;
-  margin-right: 10px;
-  border-radius: 21px;
-  align-items: center;
-  justify-content: center;
-  background-color: @surface-container-high;
-}
-
-.reader-back-icon {
-  width: 24px;
-  height: 24px;
-  object-fit: contain;
-}
-
-.reader-bar {
-  width: 100%;
-  height: 42px;
-  flex-shrink: 0;
   flex-direction: row;
+  background-color: @surface;
+  font-family: 'MiSans', sans-serif;
+  position: relative;
+}
+
+.left-rail {
+  width: 68px;
+  height: 100%;
+  flex-direction: column;
   align-items: center;
+  justify-content: flex-start;
+  padding: 8px 0;
 }
 
-.reader-title {
-  color: @on-surface;
-  font-size: 16px;
-  font-weight: bold;
-  flex: 1;
-  text-overflow: ellipsis;
-  max-height: 22px;
-}
-
-.reader-size-btn {
-  width: 42px;
-  height: 42px;
-  border-radius: 21px;
-  margin-left: 8px;
+.right-rail {
+  width: 76px;
+  height: 100%;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  padding: 5px 0;
+}
+
+.rail-button {
+  width: 52px;
+  height: 52px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  margin-top: 5px;
+  margin-bottom: 5px;
+  border-radius: 18px;
+  background-color: @surface-container;
+}
+
+.rail-button-accent {
+  width: 52px;
+  height: 52px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  margin-top: 5px;
+  margin-bottom: 5px;
+  border-radius: 18px;
   background-color: @primary-container;
 }
 
-.reader-size-label {
-  color: @on-primary-container;
-  font-size: 15px;
-  font-weight: bold;
+.back-button {
+  margin-top: 0;
 }
 
-.reader-close {
-  height: 42px;
-  min-width: 76px;
-  padding: 0 16px;
-  margin-left: 8px;
-  border-radius: 21px;
-  align-items: center;
-  justify-content: center;
-  background-color: @surface-container-highest;
+.rail-progress {
+  color: @on-surface-variant;
+  font-size: 12px;
+  margin-top: 8px;
+  text-align: center;
+  line-height: 17px;
 }
 
-.reader-close-label {
-  color: @on-surface;
-  font-size: 15px;
-  font-weight: bold;
-}
-
-.reader-scroll {
-  width: 100%;
+.center-content {
   flex: 1;
-  min-height: 0;
-  margin-top: 4px;
+  width: 0;
+  min-width: 0;
+  height: 100%;
+  flex-direction: column;
+  justify-content: center;
+  padding: 12px 16px;
+  background-color: @surface;
 }
 
-.reader-text {
-  width: 100%;
+.reader-page-text {
+  width: 624px;
+  height: 230px;
+  color: @on-surface;
+  white-space: pre-wrap;
+  word-break: break-all;
+  overflow: hidden;
+}
+
+.reader-scroll-area {
+  width: 624px;
+  height: 230px;
+}
+
+.reader-scroll-text {
+  width: 624px;
   color: @on-surface;
   white-space: pre-wrap;
   word-break: break-all;
 }
 
+/* 阅读器浮层面板（设置 / 目录） */
+
+.reader-panel-mask {
+  position: absolute;
+  left: 68px;
+  right: 76px;
+  top: 0;
+  bottom: 0;
+  justify-content: flex-end;
+  align-items: center;
+  background-color: rgba(0, 0, 0, 0.3);
+}
+
+.reader-panel {
+  width: 360px;
+  padding: 18px;
+  margin-right: 12px;
+  margin-bottom: 10px;
+  border-radius: 28px;
+  background-color: @surface-container-high;
+  flex-direction: column;
+}
+
+.reader-panel-header {
+  width: 100%;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.reader-panel-title {
+  color: @on-surface;
+  font-size: 20px;
+  font-weight: bold;
+}
+
+.reader-panel-close {
+  width: 38px;
+  height: 38px;
+  border-radius: 19px;
+  align-items: center;
+  justify-content: center;
+  background-color: @surface-container-highest;
+}
+
+.reader-setting-row {
+  width: 100%;
+  height: 62px;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.reader-setting-label {
+  color: @on-surface;
+  font-size: 17px;
+  font-weight: bold;
+}
+
+.reader-stepper {
+  flex-direction: row;
+  align-items: center;
+}
+
+.reader-stepper-btn {
+  width: 46px;
+  height: 46px;
+  border-radius: 23px;
+  align-items: center;
+  justify-content: center;
+  background-color: @primary-container;
+}
+
+.reader-stepper-value {
+  width: 82px;
+  color: @on-surface;
+  font-size: 17px;
+  font-weight: bold;
+  text-align: center;
+}
+
+/* 目录面板 */
+
+.toc-panel {
+  width: 380px;
+  padding: 18px;
+  margin-right: 12px;
+  margin-bottom: 10px;
+  border-radius: 28px;
+  background-color: @surface-container-high;
+  flex-direction: column;
+}
+
+.toc-scroll {
+  width: 100%;
+  height: 170px;
+}
+
+.toc-row {
+  width: 100%;
+  padding: 8px 10px;
+  margin-bottom: 4px;
+  border-radius: 12px;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  background-color: @surface-container;
+}
+
+.toc-label {
+  color: @on-surface;
+  font-size: 15px;
+  flex: 1;
+  text-overflow: ellipsis;
+  max-height: 21px;
+}
+
+.toc-label-active {
+  color: @primary;
+  font-weight: bold;
+}
+
+.toc-page {
+  color: @on-surface-variant;
+  font-size: 12px;
+  margin-left: 8px;
+}
 
