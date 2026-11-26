@@ -446,14 +446,13 @@ export default {
       this.selectedEntry = entry
       this.showFileActions = true
     },
-    async openReader(entry) {
-      try {
-        await fs.mkdir('/userdisk/Favorite/HyperFile')
-        await fs.writeFile(READER_TARGET_FILE, JSON.stringify({ path: entry.path, name: entry.name }))
-        $falcon.navTo('reader')
-      } catch (e) {
-        this.showToast('打开阅读器失败：' + (e && e.message ? e.message : e))
+    openReader(entry) {
+      if (!entry || !entry.path) {
+        this.showToast('文件路径无效')
+        return
       }
+      // 与 readex 原版一致：通过 Falcon 页面参数传递文件路径
+      $falcon.navTo('reader', { path: entry.path, name: entry.name })
     },
     selectOpenWith(type) {
       const entry = this.selectedEntry
