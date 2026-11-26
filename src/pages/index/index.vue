@@ -275,6 +275,7 @@ import { fs } from '../../utils/FileSystem/FileSystem.js'
 import { setReaderTarget } from '../../utils/ReaderSession.js'
 
 const UPLOAD_DIR = '/userdisk/Favorite/HyperFile'
+const LAST_PATH_FILE = '/userdisk/Favorite/.hyperfile-last-path.json'
 const PORT = 8080
 
 async function getHttp() {
@@ -344,6 +345,7 @@ export default {
     return {
       page: 'local',
       currentPath: '/',
+      lastPathRestored: false,
       entries: [],
       localLoading: false,
       localError: '',
@@ -371,7 +373,11 @@ export default {
       scriptRunning: false
     }
   },
-  onShow() {
+  async onShow() {
+    if (!this.lastPathRestored) {
+      await this.restoreLastPath()
+      this.lastPathRestored = true
+    }
     this.refreshLocal()
     this.refreshShare()
   },
@@ -390,6 +396,26 @@ export default {
       if (value < 1024) return value + ' B'
       if (value < 1024 * 1024) return (value / 1024).toFixed(1) + ' KB'
       return (value / (1024 * 1024)).toFixed(1) + ' MB'
+    },
+    async restoreLastPath() {
+      try {
+        const raw = await fs.readFile(LAST_PATH_FILE)
+        const state = JSON.parse(String(raw || ''))
+        const path = normalizePath(state && state.path)
+        // 先确认上次目录仍然存在且可读取；失效时保持根目录。
+        await fs.readdir(path)
+        this.currentPath = path
+      } catch (e) {
+        this.currentPath = '/'
+      }
+    },
+    async saveLastPath() {
+      try {
+        await fs.mkdir('/userdisk/Favorite')
+        await fs.writeFile(LAST_PATH_FILE, JSON.stringify({ path: this.currentPath }))
+      } catch (e) {
+        console.log('[HyperFile] 保存上次目录失败:', e)
+      }
     },
     async refreshLocal() {
       this.localLoading = true
@@ -434,11 +460,13 @@ export default {
       while (path.length > 1 && path.charAt(path.length - 1) === '/') path = path.slice(0, -1)
       const index = path.lastIndexOf('/')
       this.currentPath = index <= 0 ? '/' : path.slice(0, index)
+      this.saveLastPath()
       this.refreshLocal()
     },
     openLocalEntry(entry) {
       if (entry.isDirectory) {
         this.currentPath = normalizePath(entry.path)
+        this.saveLastPath()
         this.refreshLocal()
         return
       }
