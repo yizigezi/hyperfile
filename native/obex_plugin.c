@@ -125,88 +125,138 @@ static int make_destination(const char *name, char *path, size_t cap, int *fd_ou
   }
   errno = EEXIST; return -1;
 }
-static void receive_put(int fd, unsigned char *packet, size_t packet_len, int final) {
-  char name[512] = "", path[800] = "", clean[256];
-  uint64_t expected = UINT64_MAX, received = 0;
-  int output = -1, saw_name = 0, failed = 0;
+typedef struct {
+  char name[512];
+  char clean[256];
+  char path[800];
+  uint64_t expected;
+  uint64_t received;
+  int output;
+  int active;
+} opp_transfer;
+
+static void reset_transfer(opp_transfer *t, int remove_partial) {
+  if (t->output >= 0) close(t->output);
+  if (remove_partial && t->path[0]) unlink(t->path);
+  memset(t, 0, sizeof(*t));
+  t->expected = UINT64_MAX;
+  t->output = -1;
+}
+static int ensure_output(opp_transfer *t) {
+  if (t->output >= 0) return 0;
+  if (!t->name[0] || safe_basename(t->name, t->clean, sizeof(t->clean))) return -1;
+  if (make_destination(t->clean, t->path, sizeof(t->path), &t->output)) return -1;
+  return 0;
+}
+static int append_body(opp_transfer *t, const unsigned char *data, size_t length) {
+  size_t off = 0;
+  if (ensure_output(t)) return -1;
+  if (t->received + length > OPP_MAX_FILE) return -1;
+  while (off < length) {
+    ssize_t n = write(t->output, data + off, length - off);
+    if (n < 0 && errno == EINTR) continue;
+    if (n <= 0) return -1;
+    off += (size_t)n;
+  }
+  t->received += length;
+  return 0;
+}
+static void receive_put(int fd, unsigned char *packet, size_t packet_len, int final, opp_transfer *transfer) {
   unsigned char *p = packet + 3, *end = packet + packet_len;
+  int failed = 0;
+  if (!transfer->active) {
+    transfer->active = 1;
+    transfer->expected = UINT64_MAX;
+    transfer->output = -1;
+  }
   while (p < end) {
-    unsigned char id = *p++; unsigned int kind = id >> 6; size_t hlen;
+    unsigned char id = *p++;
+    unsigned int kind = id >> 6;
     if (kind == 0 || kind == 1) {
       unsigned int field_len;
+      size_t data_len;
       if (end - p < 2) { failed = 1; break; }
       field_len = ((unsigned int)p[0] << 8) | p[1];
       if (field_len < 3 || (size_t)(end - p) < field_len - 1) { failed = 1; break; }
-      hlen = field_len - 2;
+      data_len = field_len - 3;
       if (id == 0x01) {
-        if (utf16be_to_utf8(p + 2, hlen - 1, name, sizeof(name))) failed = 1;
-        else saw_name = 1;
+        if (utf16be_to_utf8(p + 2, data_len, transfer->name, sizeof(transfer->name))) failed = 1;
       } else if (id == 0x48 || id == 0x49) {
-        size_t body_len = hlen - 1;
-        if (!saw_name || failed) { failed = 1; }
-        else {
-          if (output < 0) {
-            if (safe_basename(name, clean, sizeof(clean)) || make_destination(clean, path, sizeof(path), &output)) failed = 1;
-          }
-          if (!failed && body_len) {
-            size_t off = 0;
-            while (off < body_len) {
-              ssize_t w = write(output, p + 2 + off, body_len - off);
-              if (w < 0 && errno == EINTR) continue;
-              if (w <= 0) { failed = 1; break; }
-              off += (size_t)w;
-            }
-            received += body_len;
-            if (received > OPP_MAX_FILE) failed = 1;
-          }
-        }
-      } else if (id == 0xC3) {
-        if (field_len != 5) failed = 1;
-        else expected = ((uint64_t)p[2] << 24) | ((uint64_t)p[3] << 16) | ((uint64_t)p[4] << 8) | p[5];
+        if (append_body(transfer, p + 2, data_len)) failed = 1;
       }
       p += field_len - 2;
     } else if (kind == 2) {
-      if (id == 0xCB) p += 1;
-      else { failed = 1; break; }
+      if (end - p < 1) { failed = 1; break; }
+      p += 1;
     } else {
+      uint32_t value;
       if (end - p < 4) { failed = 1; break; }
+      value = ((uint32_t)p[0] << 24) | ((uint32_t)p[1] << 16) | ((uint32_t)p[2] << 8) | p[3];
+      if (id == 0xC3) transfer->expected = value;
       p += 4;
     }
-    if (p > end) { failed = 1; break; }
   }
-  if (expected != UINT64_MAX && (expected > OPP_MAX_FILE || received > expected)) failed = 1;
+  if (transfer->expected != UINT64_MAX &&
+      (transfer->expected > OPP_MAX_FILE || transfer->received > transfer->expected)) failed = 1;
   if (failed) {
-    if (output >= 0) { close(output); unlink(path); }
-    send_response(fd, 0xC0, NULL, 0); return;
+    reset_transfer(transfer, 1);
+    send_response(fd, 0xC0, NULL, 0);
+    return;
   }
-  if (!final) { send_response(fd, 0x90, NULL, 0); return; }
-  if (!saw_name || output < 0 || (expected != UINT64_MAX && received != expected)) {
-    if (output >= 0) { close(output); unlink(path); }
-    send_response(fd, 0xC0, NULL, 0); return;
+  if (!final) {
+    send_response(fd, 0x90, NULL, 0);
+    return;
   }
-  fsync(output); close(output);
-  pthread_mutex_lock(&g_lock); g_received++; snprintf(g_last, sizeof(g_last), "%s", clean); pthread_mutex_unlock(&g_lock);
+  if (ensure_output(transfer) ||
+      (transfer->expected != UINT64_MAX && transfer->received != transfer->expected)) {
+    reset_transfer(transfer, 1);
+    send_response(fd, 0xC0, NULL, 0);
+    return;
+  }
+  fsync(transfer->output);
+  close(transfer->output);
+  transfer->output = -1;
+  pthread_mutex_lock(&g_lock);
+  g_received++;
+  snprintf(g_last, sizeof(g_last), "%s", transfer->clean);
+  pthread_mutex_unlock(&g_lock);
   send_response(fd, 0xA0, NULL, 0);
+  reset_transfer(transfer, 0);
 }
 static void handle_client(int fd) {
-  unsigned char *packet = NULL; size_t length = 0; int connected = 0;
+  unsigned char *packet = NULL;
+  size_t length = 0;
+  int connected = 0;
+  opp_transfer transfer;
+  memset(&transfer, 0, sizeof(transfer));
+  transfer.expected = UINT64_MAX;
+  transfer.output = -1;
   for (;;) {
     unsigned char op;
     if (read_packet(fd, &packet, &length)) break;
     op = packet[0];
     if (op == 0x80) {
       const unsigned char connect_reply[4] = { 0x10, 0x00, 0xFF, 0xFE };
-      send_response(fd, 0xA0, connect_reply, sizeof(connect_reply)); connected = 1;
+      send_response(fd, 0xA0, connect_reply, sizeof(connect_reply));
+      connected = 1;
     } else if ((op & 0x7F) == 0x02 && connected) {
-      receive_put(fd, packet, length, (op & 0x80) != 0);
+      receive_put(fd, packet, length, (op & 0x80) != 0, &transfer);
     } else if (op == 0x81 && connected) {
-      send_response(fd, 0xA0, NULL, 0); free(packet); break;
+      send_response(fd, 0xA0, NULL, 0);
+      free(packet);
+      packet = NULL;
+      break;
     } else {
-      send_response(fd, 0xC0, NULL, 0); free(packet); break;
+      send_response(fd, 0xC0, NULL, 0);
+      free(packet);
+      packet = NULL;
+      break;
     }
-    free(packet); packet = NULL;
+    free(packet);
+    packet = NULL;
   }
   free(packet);
+  reset_transfer(&transfer, 1);
 }
 static int register_sdp(void) {
   pid_t pid = fork(); int status = 0;
