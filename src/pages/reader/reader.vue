@@ -1,7 +1,8 @@
 <!--
   文本阅读器（readex-nt 阅读器移植版，纯 JS 分页，无原生依赖）
   - txt：分页浏览（左右翻页）+ 小说章节目录（自动生成，可跳转）
-  - 其他文本：保留滚动浏览
+  - 书架书籍：加入时已预分页，按 chunk 懒加载，进度记忆到 shelf.json
+  - 其他文本：保留滚动浏览；ad-hoc 阅读进度记 reader-history.json
   - 设置：字号 / 行距步进器（readex-nt 同款），改动后按比例保持阅读位置
   几何沿 readex-nt：左轨 68 / 右轨 76 / 文本区 624×230（800×254 横屏）
 -->
@@ -95,6 +96,8 @@
 <script>
 import { fs } from '../../utils/FileSystem/FileSystem.js'
 import { buildPages, chapterIndexOf } from '../../utils/JsPagination.js'
+import { getReaderTarget, getReaderSettings, setReaderSettings } from '../../utils/ReaderSession.js'
+import { loadChunk, chunkIndexOf, CHUNK_PAGES, updateProgress, addBook } from '../../utils/Bookshelf.js'
 
 function decodeText(value) {
   if (typeof value === 'string') return value
@@ -162,23 +165,23 @@ export default {
       chapters: [],
       currentPage: 0,
       history: [],
-      settings: { fontSize: 17, lineHeight: 1.55 },
+      settings: getReaderSettings(),
       settingsVisible: false,
-      tocVisible: false
+      tocVisible: false,
+      book: null,
+      chunkPages: [],
+      chunkIndex: -1,
+      busy: false
     }
   },
-  async created() {
-    // readex 原版在 created 中直接读取 Falcon 路由参数；
-    // HyperFile 的 BasePage 会在页面组件创建前保存 $page.options。
-    const options = this.$page && this.$page.options ? this.$page.options : {}
-    const path = options.path
-    if (!path) {
-      this.rawText = '未收到文件路径参数'
-      return
-    }
-    this.filePath = path
-    this.readerTitle = options.name || path.split('/').pop() || '文本阅读器'
-    await this.loadText()
+  created() {
+    this.loadTarget()
+  },
+  onShow() {
+    this.loadTarget()
+  },
+  onHide() {
+    this.saveProgress()
   },
   computed: {
     textStyle() {
@@ -188,18 +191,79 @@ export default {
       }
     },
     pageText() {
+      if (this.book) {
+        const offset = this.currentPage - this.chunkIndex * CHUNK_PAGES
+        return this.chunkPages[offset] || ''
+      }
       return this.pages[this.currentPage] || ''
     },
+    totalPages() {
+      return this.book ? this.book.pageCount : this.pages.length
+    },
     progressLabel() {
-      if (!this.pages.length) return '—'
-      const percent = Math.round((this.currentPage + 1) / this.pages.length * 100)
-      return (this.currentPage + 1) + ' / ' + this.pages.length + ' 页\n' + percent + '%'
+      if (this.busy) return '重新分页中…'
+      const total = this.totalPages
+      if (!total) return '—'
+      const percent = Math.round((this.currentPage + 1) / total * 100)
+      return (this.currentPage + 1) + ' / ' + total + ' 页\n' + percent + '%'
     },
     currentChapter() {
       return chapterIndexOf(this.chapters, this.currentPage)
     }
   },
   methods: {
+    async loadTarget() {
+      // 双通道取参：ReaderSession 共享存储优先，Falcon 页面参数兜底
+      const target = getReaderTarget()
+      let path = target.path
+      let name = target.name
+      if (!path) {
+        const options = this.$page && this.$page.options ? this.$page.options : {}
+        path = options.path || ''
+        name = options.name || ''
+      }
+      if (!path) {
+        this.rawText = '未收到文件路径参数'
+        return
+      }
+      if (path === this.filePath && (!target.book || (this.book && this.book.id === target.book.id))) return
+      this.filePath = path
+      this.readerTitle = name || path.split('/').pop() || '文本阅读器'
+      if (target.book) await this.openBook(target.book)
+      else await this.loadText()
+    },
+    async openBook(book) {
+      this.book = book
+      this.mode = 'paged'
+      this.settings = { fontSize: book.fontSize, lineHeight: book.lineHeight }
+      this.chapters = book.chapters || []
+      this.currentPage = Math.min(Math.max(0, book.progress || 0), Math.max(0, book.pageCount - 1))
+      this.chunkIndex = -1
+      this.chunkPages = []
+      await this.ensureChunkFor(this.currentPage)
+    },
+    async ensureChunkFor(page) {
+      if (!this.book) return
+      const index = chunkIndexOf(page)
+      if (index === this.chunkIndex && this.chunkPages.length) return
+      const pages = await loadChunk(this.book.id, index)
+      this.chunkIndex = index
+      this.chunkPages = pages
+    },
+    async goToPage(page) {
+      const total = this.totalPages
+      const target = Math.min(Math.max(0, page), Math.max(0, total - 1))
+      if (this.book) await this.ensureChunkFor(target)
+      this.currentPage = target
+      this.saveProgress()
+    },
+    saveProgress() {
+      if (this.book) {
+        updateProgress(this.book.id, this.currentPage)
+      } else if (this.mode === 'paged') {
+        this.saveHistory()
+      }
+    },
     async loadText() {
       if (!this.filePath) {
         this.rawText = '文件路径无效'
@@ -218,6 +282,7 @@ export default {
       const isTxt = /\.txt$/i.test(this.filePath) || /\.txt$/i.test(this.readerTitle)
       if (isTxt && this.rawText.length <= PAGED_MAX_CHARS) {
         this.mode = 'paged'
+        this.book = null
         this.buildPagination(0)
         if (saved && Number.isFinite(Number(saved.page))) {
           this.currentPage = Math.max(0, Math.min(Number(saved.page), this.pages.length - 1))
@@ -248,22 +313,15 @@ export default {
       this.buildPagination(ratio)
     },
     previousPage() {
-      if (this.currentPage > 0) {
-        this.currentPage -= 1
-        this.saveHistory()
-      }
+      this.goToPage(this.currentPage - 1)
     },
     nextPage() {
-      if (this.currentPage < this.pages.length - 1) {
-        this.currentPage += 1
-        this.saveHistory()
-      }
+      this.goToPage(this.currentPage + 1)
     },
     jumpToChapter(index) {
       const chapter = this.chapters[index]
-      if (chapter) this.currentPage = Math.min(chapter.page, this.pages.length - 1)
+      if (chapter) this.goToPage(chapter.page)
       this.tocVisible = false
-      this.saveHistory()
     },
     toggleToc() {
       this.tocVisible = !this.tocVisible
@@ -275,15 +333,34 @@ export default {
       const size = this.settings.fontSize + delta
       if (size < 12 || size > 32) return
       this.settings.fontSize = size
-      if (this.mode === 'paged') this.repaginate()
-      this.saveHistory()
+      setReaderSettings({ fontSize: size })
+      if (this.book) this.rechunkBook()
+      else if (this.mode === 'paged') this.repaginate()
+      this.saveProgress()
     },
     changeLineHeight(delta) {
       const value = Math.round((this.settings.lineHeight + delta) * 100) / 100
       if (value < 1.2 || value > 2.2) return
       this.settings.lineHeight = value
-      if (this.mode === 'paged') this.repaginate()
-      this.saveHistory()
+      setReaderSettings({ lineHeight: value })
+      if (this.book) this.rechunkBook()
+      else if (this.mode === 'paged') this.repaginate()
+      this.saveProgress()
+    },
+    async rechunkBook() {
+      const book = this.book
+      if (!book || this.busy) return
+      this.busy = true
+      try {
+        const ratio = book.pageCount > 1 ? this.currentPage / (book.pageCount - 1) : 0
+        const entry = await addBook(book.path, book.name, this.settings)
+        entry.progress = Math.round(ratio * Math.max(0, entry.pageCount - 1))
+        await updateProgress(entry.id, entry.progress)
+        await this.openBook(entry)
+      } catch (e) {
+        this.readerTitle = '重新分页失败：' + (e && e.message ? e.message : e)
+      }
+      this.busy = false
     },
     async loadHistory() {
       try {
@@ -295,7 +372,7 @@ export default {
       }
     },
     async saveHistory() {
-      if (!this.filePath) return
+      if (!this.filePath || this.book) return
       const record = {
         path: this.filePath,
         name: this.readerTitle,
@@ -314,7 +391,7 @@ export default {
       }
     },
     goBack() {
-      this.saveHistory()
+      this.saveProgress()
       this.$page.finish()
     }
   }

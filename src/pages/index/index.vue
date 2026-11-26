@@ -12,6 +12,9 @@
         <div :class="page === 'settings' ? 'nav-item nav-item-active' : 'nav-item'" @click="switchPage('settings')">
           <text :class="page === 'settings' ? 'nav-label nav-label-active' : 'nav-label'">设置</text>
         </div>
+        <div class="nav-item" @click="OpenShelf">
+          <text class="nav-label">书架</text>
+        </div>
       </div>
       <text class="path-label" v-if="page === 'local'">{{ currentPath }}</text>
       <text class="entry-count" v-if="page === 'local'">{{ entries.length }} 项</text>
@@ -177,10 +180,62 @@
           <text class="file-action-description">通过原生任务执行器运行脚本</text>
         </div>
         <text class="file-actions-empty" v-if="selectedEntry && !selectedEntry.isDirectory && !textExtensions[selectedEntry.extension] && selectedEntry.extension !== 'AMR' && selectedEntry.extension !== 'SH'">暂无可用打开方式</text>
+        <text class="file-actions-section">书籍</text>
+        <div class="file-action-row" v-if="selectedEntry && !selectedEntry.isDirectory && selectedEntry.extension === 'TXT'" @click="AddToShelf">
+          <text class="file-action-name">加入书架</text>
+          <text class="file-action-description">按当前阅读设置预分页并生成目录，秒开续读</text>
+        </div>
+        <text class="file-actions-section">文件操作</text>
+        <div class="file-action-row" v-if="selectedEntry && !selectedEntry.isDirectory" @click="CopyToClipboard">
+          <text class="file-action-name">复制</text>
+          <text class="file-action-description">复制此文件，随后可在任意目录粘贴</text>
+        </div>
+        <div class="file-action-row" v-if="clipboardPath" @click="PasteFromClipboard">
+          <text class="file-action-name">粘贴到当前目录</text>
+          <text class="file-action-description">{{ clipboardName }}</text>
+        </div>
+        <div class="file-action-row" v-if="selectedEntry && !selectedEntry.isDirectory" @click="OpenRename">
+          <text class="file-action-name">重命名</text>
+          <text class="file-action-description">修改文件名</text>
+        </div>
+        <div class="file-action-row" v-if="selectedEntry && !selectedEntry.isDirectory" @click="OpenDelete">
+          <text class="file-action-name">删除</text>
+          <text class="file-action-description">删除此文件（有确认）</text>
+        </div>
         </scroller>
         <div class="dialog-actions file-actions-actions">
           <div class="dialog-button" @click="showFileActions = false">
             <text class="dialog-button-label">关闭</text>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="dialog-mask" v-if="showRename">
+      <div class="dialog-card">
+        <text class="dialog-title">重命名</text>
+        <input class="text-input" v-model="renameValue" placeholder="输入新文件名" />
+        <div class="dialog-actions">
+          <div class="dialog-button" @click="showRename = false">
+            <text class="dialog-button-label">取消</text>
+          </div>
+          <div class="dialog-button dialog-button-primary" @click="ConfirmRename">
+            <text class="dialog-button-primary-label">保存</text>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="dialog-mask" v-if="showDelete">
+      <div class="dialog-card">
+        <text class="dialog-title">删除文件</text>
+        <text class="dialog-description">确认删除《{{ selectedEntry ? selectedEntry.name : '' }}》？删除后无法恢复。</text>
+        <div class="dialog-actions">
+          <div class="dialog-button" @click="showDelete = false">
+            <text class="dialog-button-label">取消</text>
+          </div>
+          <div class="dialog-button dialog-button-primary" @click="ConfirmDelete">
+            <text class="dialog-button-primary-label">删除</text>
           </div>
         </div>
       </div>
@@ -271,7 +326,9 @@
 
 <script>
 import FlQrcode from 'falcon-ui/src/packages/qr-code/index.vue'
-import { fs } from '../../utils/FileSystem/FileSystem.js'
+import { fs, execShell } from '../../utils/FileSystem/FileSystem.js'
+import { setReaderTarget, getReaderSettings } from '../../utils/ReaderSession.js'
+import { addBook } from '../../utils/Bookshelf.js'
 const UPLOAD_DIR = '/userdisk/Favorite/HyperFile'
 const DATA_DIR = '/userdisk/HyperFile_Data'
 const LAST_PATH_FILE = DATA_DIR + '/last-directory.json'
@@ -362,6 +419,11 @@ export default {
       showFileActions: false,
       selectedEntry: null,
       textExtensions: TEXT_EXTS,
+      clipboardPath: '',
+      clipboardName: '',
+      showRename: false,
+      renameValue: '',
+      showDelete: false,
       showInstallConfirm: false,
       pendingInstallPath: '',
       showScriptConfirm: false,
@@ -476,8 +538,88 @@ export default {
         this.showToast('文件路径无效')
         return
       }
-      // 与 readex 原版一致：通过 Falcon 页面参数传递文件路径
+      // 双通道传参：ReaderSession 共享存储 + Falcon 页面参数（BasePage 会保存 $page.options）
+      setReaderTarget(entry.path, entry.name, null)
       $falcon.navTo('reader', { path: entry.path, name: entry.name })
+    },
+    OpenShelf() {
+      $falcon.navTo('shelf')
+    },
+    shellQuote(value) {
+      return "'" + String(value).replace(/'/g, "'\\''") + "'"
+    },
+    async AddToShelf() {
+      const entry = this.selectedEntry
+      this.showFileActions = false
+      if (!entry) return
+      this.showToast('正在生成分页缓存…')
+      try {
+        const book = await addBook(entry.path, entry.name, getReaderSettings())
+        this.showToast('已加入书架：共 ' + book.pageCount + ' 页')
+      } catch (e) {
+        this.showToast('加入书架失败：' + (e && e.message ? e.message : e))
+      }
+    },
+    CopyToClipboard() {
+      const entry = this.selectedEntry
+      this.showFileActions = false
+      if (!entry) return
+      this.clipboardPath = entry.path
+      this.clipboardName = entry.name
+      this.showToast('已复制：' + entry.name)
+    },
+    async PasteFromClipboard() {
+      const source = this.clipboardPath
+      this.showFileActions = false
+      if (!source) return
+      try {
+        await execShell('cp -f ' + this.shellQuote(source) + ' ' + this.shellQuote(this.currentPath + '/'))
+        this.showToast('已粘贴到当前目录')
+        this.refreshLocal()
+      } catch (e) {
+        this.showToast('粘贴失败：' + (e && e.message ? e.message : e))
+      }
+    },
+    OpenRename() {
+      const entry = this.selectedEntry
+      this.showFileActions = false
+      if (!entry) return
+      this.renameValue = entry.name
+      this.showRename = true
+    },
+    async ConfirmRename() {
+      const entry = this.selectedEntry
+      const name = String(this.renameValue || '').trim()
+      this.showRename = false
+      if (!entry || !name || name.indexOf('/') >= 0) {
+        this.showToast('文件名不合法')
+        return
+      }
+      if (name === entry.name) return
+      try {
+        const dir = entry.path.slice(0, entry.path.lastIndexOf('/'))
+        await execShell('mv -f ' + this.shellQuote(entry.path) + ' ' + this.shellQuote(dir + '/' + name))
+        this.showToast('已重命名为 ' + name)
+        this.refreshLocal()
+      } catch (e) {
+        this.showToast('重命名失败：' + (e && e.message ? e.message : e))
+      }
+    },
+    OpenDelete() {
+      this.showFileActions = false
+      this.showDelete = true
+    },
+    async ConfirmDelete() {
+      const entry = this.selectedEntry
+      this.showDelete = false
+      if (!entry) return
+      try {
+        await fs.rm(entry.path)
+        this.showToast('已删除 ' + entry.name)
+        this.refreshLocal()
+      } catch (e) {
+        this.showToast('删除失败：' + (e && e.message ? e.message : e))
+      }
     },
     selectOpenWith(type) {
       const entry = this.selectedEntry

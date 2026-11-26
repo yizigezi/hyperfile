@@ -1,6 +1,7 @@
 {
   "pages": {
     "index": "pages/index/index.vue",
-    "reader": "pages/reader/reader.vue"
+    "reader": "pages/reader/reader.vue",
+    "shelf": "pages/shelf/shelf.vue"
   }
 }
