@@ -107,7 +107,9 @@ export default {
       if (!/^([0-9A-F]{2}:){5}[0-9A-F]{2}$/.test(mac)) { this.showToast('设备地址无效'); return }
       try {
         this.showToast('正在配对并连接…')
-        const device = this.devices.find((item) => item.address === mac)\n        const command = device && device.connected ? 'bluetoothctl disconnect ' + mac : 'bluetoothctl power on >/dev/null 2>&1; bluetoothctl pair ' + mac + ' 2>&1; bluetoothctl trust ' + mac + ' 2>&1; bluetoothctl connect ' + mac + ' 2>&1\n        const output = await this.runShell(command + '; bluetoothctl info ' + mac + ' 2>&1')
+        const device = this.devices.find((item) => item.address === mac)
+        const command = device && device.connected ? 'bluetoothctl disconnect ' + mac : 'bluetoothctl power on >/dev/null 2>&1; bluetoothctl pair ' + mac + ' 2>&1; bluetoothctl trust ' + mac + ' 2>&1; bluetoothctl connect ' + mac + ' 2>&1
+        const output = await this.runShell(command + '; bluetoothctl info ' + mac + ' 2>&1')
         const connected = /Connected:\s*yes/i.test(output)
         const paired = /Paired:\s*yes/i.test(output)
         const device = this.devices.find((item) => item.address === mac)
