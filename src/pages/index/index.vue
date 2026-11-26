@@ -162,7 +162,7 @@
       <div class="dialog-card file-actions-card">
         <text class="dialog-title file-actions-title">{{ selectedEntry ? selectedEntry.name : '' }}</text>
         <text class="dialog-description file-actions-meta">{{ selectedEntry ? (selectedEntry.isDirectory ? '文件夹' : (selectedEntry.extension || '文件') + ' · ' + formatSize(selectedEntry.size)) : '' }}</text>
-        <scroll class="file-actions-scroll" scroll-y="true">
+        <scroller class="file-actions-scroll" scroll-y="true" show-scrollbar="false">
         <text class="file-actions-section">打开方式</text>
         <div class="file-action-row" v-if="selectedEntry && !selectedEntry.isDirectory && textExtensions[selectedEntry.extension]" @click="selectOpenWith('read')">
           <text class="file-action-name">文本阅读器</text>
@@ -177,7 +177,7 @@
           <text class="file-action-description">通过原生任务执行器运行脚本</text>
         </div>
         <text class="file-actions-empty" v-if="selectedEntry && !selectedEntry.isDirectory && !textExtensions[selectedEntry.extension] && selectedEntry.extension !== 'AMR' && selectedEntry.extension !== 'SH'">暂无可用打开方式</text>
-        </scroll>
+        </scroller>
         <div class="dialog-actions file-actions-actions">
           <div class="dialog-button" @click="showFileActions = false">
             <text class="dialog-button-label">关闭</text>
