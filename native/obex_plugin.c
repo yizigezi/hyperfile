@@ -258,16 +258,18 @@ static void handle_client(int fd) {
   free(packet);
   reset_transfer(&transfer, 1);
 }
-static int register_sdp(void) {
+static int run_sdptool(const char *action) {
   pid_t pid = fork(); int status = 0;
   if (pid < 0) return -1;
-  if (pid == 0) { execlp("sdptool", "sdptool", "add", "OPUSH", (char *)NULL); _exit(127); }
+  if (pid == 0) { execlp("sdptool", "sdptool", action, "--channel=9", "OPUSH", (char *)NULL); _exit(127); }
   if (waitpid(pid, &status, 0) < 0) return -1;
   return WIFEXITED(status) && WEXITSTATUS(status) == 0 ? 0 : -1;
 }
+static int register_sdp(void) { return run_sdptool("add"); }
+static void unregister_sdp(void) { (void)run_sdptool("del"); }
 static void *server_main(void *unused) {
   int server; hf_sockaddr_rc addr; (void)unused;
-  if (register_sdp() == 0) g_sdp_registered = 1;
+  if (register_sdp() == 0) { pthread_mutex_lock(&g_lock); g_sdp_registered = 1; pthread_mutex_unlock(&g_lock); }
   server = socket(AF_BLUETOOTH, SOCK_STREAM, BTPROTO_RFCOMM);
   if (server < 0) goto done;
   memset(&addr, 0, sizeof(addr)); addr.family = AF_BLUETOOTH; addr.channel = OPP_CHANNEL;
@@ -284,6 +286,7 @@ static void *server_main(void *unused) {
   }
   close(server);
 done:
+  if (g_sdp_registered) { unregister_sdp(); pthread_mutex_lock(&g_lock); g_sdp_registered = 0; pthread_mutex_unlock(&g_lock); }
   pthread_mutex_lock(&g_lock); g_listener = -1; g_running = 0; g_stop = 0; pthread_mutex_unlock(&g_lock);
   return NULL;
 }
