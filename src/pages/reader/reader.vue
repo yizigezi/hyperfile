@@ -19,9 +19,9 @@
 
     <div class="center-content">
       <text v-if="mode === 'paged'" class="reader-page-text" :style="textStyle">{{ pageText }}</text>
-      <scroll v-else class="reader-scroll-area" scroll-y="true">
+      <scroller v-else class="reader-scroll-area" scroll-y="true" show-scrollbar="false">
         <text class="reader-scroll-text" :style="textStyle">{{ rawText }}</text>
-      </scroll>
+      </scroller>
     </div>
 
     <div class="right-rail">
@@ -101,6 +101,9 @@ import { getReaderTarget } from '../../utils/ReaderSession.js'
 const TEXT_WIDTH = 624
 const TEXT_HEIGHT = 230
 const PAGED_MAX_CHARS = 8000000 // 超大文本降级为滚动，避免一次分页卡死
+const DATA_DIR = '/userdisk/HyperFile_Data'
+const HISTORY_FILE = DATA_DIR + '/reader-history.json'
+const HISTORY_LIMIT = 50
 
 export default {
   name: 'reader',
@@ -113,6 +116,7 @@ export default {
       pages: [],
       chapters: [],
       currentPage: 0,
+      history: [],
       settings: { fontSize: 17, lineHeight: 1.55 },
       settingsVisible: false,
       tocVisible: false
@@ -151,6 +155,9 @@ export default {
         this.rawText = '文件路径无效'
         return
       }
+      let saved = null
+      await this.loadHistory()
+      saved = this.history.find(item => item.path === this.filePath) || null
       try {
         const text = await fs.readFile(this.filePath)
         this.rawText = typeof text === 'string' && text ? text : (text ? String(text) : '（空文件）')
@@ -162,9 +169,13 @@ export default {
       if (isTxt && this.rawText.length <= PAGED_MAX_CHARS) {
         this.mode = 'paged'
         this.buildPagination(0)
+        if (saved && Number.isFinite(Number(saved.page))) {
+          this.currentPage = Math.max(0, Math.min(Number(saved.page), this.pages.length - 1))
+        }
       } else {
         this.mode = 'scroll'
       }
+      await this.saveHistory()
     },
     linesPerPage() {
       return Math.max(1, Math.floor(TEXT_HEIGHT / (this.settings.fontSize * this.settings.lineHeight)))
@@ -187,15 +198,22 @@ export default {
       this.buildPagination(ratio)
     },
     previousPage() {
-      if (this.currentPage > 0) this.currentPage -= 1
+      if (this.currentPage > 0) {
+        this.currentPage -= 1
+        this.saveHistory()
+      }
     },
     nextPage() {
-      if (this.currentPage < this.pages.length - 1) this.currentPage += 1
+      if (this.currentPage < this.pages.length - 1) {
+        this.currentPage += 1
+        this.saveHistory()
+      }
     },
     jumpToChapter(index) {
       const chapter = this.chapters[index]
       if (chapter) this.currentPage = Math.min(chapter.page, this.pages.length - 1)
       this.tocVisible = false
+      this.saveHistory()
     },
     toggleToc() {
       this.tocVisible = !this.tocVisible
@@ -208,14 +226,45 @@ export default {
       if (size < 12 || size > 32) return
       this.settings.fontSize = size
       if (this.mode === 'paged') this.repaginate()
+      this.saveHistory()
     },
     changeLineHeight(delta) {
       const value = Math.round((this.settings.lineHeight + delta) * 100) / 100
       if (value < 1.2 || value > 2.2) return
       this.settings.lineHeight = value
       if (this.mode === 'paged') this.repaginate()
+      this.saveHistory()
+    },
+    async loadHistory() {
+      try {
+        const raw = await fs.readFile(HISTORY_FILE)
+        const parsed = JSON.parse(String(raw || ''))
+        this.history = Array.isArray(parsed) ? parsed : []
+      } catch (e) {
+        this.history = []
+      }
+    },
+    async saveHistory() {
+      if (!this.filePath) return
+      const record = {
+        path: this.filePath,
+        name: this.readerTitle,
+        mode: this.mode,
+        page: this.currentPage,
+        updatedAt: Date.now()
+      }
+      const next = [record].concat(this.history.filter(item => item && item.path !== this.filePath))
+        .slice(0, HISTORY_LIMIT)
+      this.history = next
+      try {
+        await fs.mkdir(DATA_DIR)
+        await fs.writeFile(HISTORY_FILE, JSON.stringify(next))
+      } catch (e) {
+        console.log('[HyperFile Reader] 保存阅读历史失败:', e)
+      }
     },
     goBack() {
+      this.saveHistory()
       this.$page.finish()
     }
   }
