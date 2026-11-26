@@ -27,7 +27,6 @@
           <text class="setting-description">兼容支持 OPP 的手机系统蓝牙分享。需要设备端 BlueZ 提供 sdptool。</text>
           <div class="setting-action-card" @click="toggleObexReceiver"><text class="setting-name">{{ obexRunning ? "停止 OBEX 接收" : "开启 OBEX 接收" }}</text><text class="setting-description">{{ obexRunning ? "正在等待手机发送文件" : "让手机通过系统蓝牙分享发送文件" }}</text><text class="setting-chevron">{{ obexRunning ? "停止" : "启动" }}</text></div>
           <text class="settings-note">SDP：{{ obexSdpRegistered ? "已注册" : "未确认" }} · 已接收 {{ obexReceived }} 个 · 最近：{{ obexLastFile || "暂无" }}</text>
-          <divider />
           <text class="section-heading">HyperFile 自定义传输</text>
           <text class="setting-name">RFCOMM · Channel 7</text>
           <text class="setting-description">自定义 HFBT 协议，不依赖 OBEX。接收文件保存到 /userdisk/Favorite/HyperFile。</text>
