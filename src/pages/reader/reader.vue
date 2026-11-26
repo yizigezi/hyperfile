@@ -100,11 +100,9 @@ const READER_TARGET_FILE = '/userdisk/Favorite/HyperFile/.reader-target.json'
 function decodeText(value) {
   if (typeof value === 'string') return value
   if (value == null) return ''
-  if (typeof value.toString === 'function') {
-    try {
-      const decoded = value.toString('utf8')
-      if (typeof decoded === 'string' && decoded !== '[object Object]') return decoded
-    } catch (e) {}
+  const isBuffer = value.constructor && value.constructor.name === 'Buffer'
+  if (isBuffer && typeof value.toString === 'function') {
+    try { return value.toString('utf8') } catch (e) {}
   }
   let bytes = null
   if (typeof ArrayBuffer !== 'undefined' && value instanceof ArrayBuffer) {
@@ -115,6 +113,12 @@ function decodeText(value) {
     bytes = value
   } else if (typeof value.data === 'string') {
     return value.data
+  }
+  if (!bytes && typeof value.toString === 'function') {
+    try {
+      const decoded = value.toString('utf8')
+      if (typeof decoded === 'string' && decoded !== '[object Object]') return decoded
+    } catch (e) {}
   }
   if (!bytes) return String(value)
   let output = ''
