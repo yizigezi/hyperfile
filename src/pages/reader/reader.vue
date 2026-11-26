@@ -45,12 +45,12 @@
             <image class="material-icon" src="/assets/icons/close.png" />
           </div>
         </div>
-        <scroll class="toc-scroll" scroll-y="true">
+        <scroller class="toc-scroll" scroll-y="true" show-scrollbar="false">
           <div class="toc-row" v-for="(chapter, index) in chapters" :key="index" @click="jumpToChapter(index)">
             <text :class="index === currentChapter ? 'toc-label toc-label-active' : 'toc-label'">{{ chapter.title }}</text>
             <text class="toc-page">{{ chapter.page + 1 }}</text>
           </div>
-        </scroll>
+        </scroller>
       </div>
     </div>
 
