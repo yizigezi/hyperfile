@@ -272,9 +272,6 @@
 <script>
 import FlQrcode from 'falcon-ui/src/packages/qr-code/index.vue'
 import { fs } from '../../utils/FileSystem/FileSystem.js'
-// 页面间通过文件系统交接目标，避免独立页面 JS 上下文导致模块变量丢失
-const READER_TARGET_FILE = '/userdisk/Favorite/HyperFile/.reader-target.json'
-
 const UPLOAD_DIR = '/userdisk/Favorite/HyperFile'
 const PORT = 8080
 
