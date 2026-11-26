@@ -48,8 +48,8 @@ cp "$OUT/libjsapi_hyperfile_local_ops.so" "$LIBS/libjsapi_hyperfile_local_ops.so
 chmod 755 "$LIBS/libjsapi_hyperfile_local_ops.so"
 
 echo "== Build native Bluetooth RFCOMM JSAPI =="
-"${CC[@]}" -shared -fPIC -O2 -g0 -fvisibility=hidden \\
-  -I "$INC" "$INC/bluetooth_plugin.c" -lpthread \\
+"${CC[@]}" -shared -fPIC -O2 -g0 -fvisibility=hidden \
+  -I "$INC" "$INC/bluetooth_plugin.c" -lpthread \
   -o "$OUT/libjsapi_hyperfile_bluetooth.so"
 cp "$OUT/libjsapi_hyperfile_bluetooth.so" "$LIBS/libjsapi_hyperfile_bluetooth.so"
 chmod 755 "$LIBS/libjsapi_hyperfile_bluetooth.so"
