@@ -67,9 +67,17 @@ export default {
       }
       throw new Error('命令执行超时')
     },
+    parseDevices(lines) {
+      const found = {}
+      lines.filter((line) => line.indexOf('Device ') === 0).forEach((line) => {
+        const match = line.match(/^Device\\s+([0-9A-Fa-f:]{17})\\s*(.*)$/)
+        if (match) found[match[1].toUpperCase()] = { address: match[1].toUpperCase(), name: match[2] || '', paired: false, connected: false }
+      })
+      return Object.keys(found).map((address) => found[address])
+    },
     parseOutput(output) {
-      const lines = String(output || '').split(/\r?\n/).map((line) => line.trim()).filter(Boolean)
-      this.devices = lines.filter((line) => line.indexOf('Device ') === 0).map((line) => line.replace(/^Device\s+/, ''))
+      const lines = String(output || '').split(/\\r?\\n/).map((line) => line.trim()).filter(Boolean)
+      this.devices = this.parseDevices(lines)
       this.adapterReady = lines.indexOf('ADAPTER:UP') >= 0
       const info = lines.find((line) => line.indexOf('ADAPTER:') === 0 && line !== 'ADAPTER:UP')
       this.adapterInfo = info ? info.slice(8) : (this.adapterReady ? 'hci0 / BlueZ' : '未检测到可用适配器')
@@ -88,7 +96,7 @@ export default {
       try {
         this.showToast('正在搜索蓝牙设备…')
         const output = await this.runShell('bluetoothctl power on >/dev/null 2>&1; bluetoothctl scan on >/dev/null 2>&1; sleep 8; bluetoothctl scan off >/dev/null 2>&1; bluetoothctl devices 2>/dev/null')
-        this.devices = String(output).split(/\r?\n/).map((line) => line.trim()).filter((line) => line.indexOf('Device ') === 0).map((line) => line.replace(/^Device\s+/, ''))
+        this.devices = this.parseDevices(String(output).split(/\\r?\\n/).map((line) => line.trim()).filter(Boolean))
         this.showToast('搜索完成：' + this.devices.length + ' 台设备')
       } catch (e) {
         this.showToast('搜索失败：' + (e && e.message ? e.message : e))
