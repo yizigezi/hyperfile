@@ -140,7 +140,7 @@ static JSValue js_status(JSContext *ctx, JSValueConst th, int argc, JSValueConst
 static int parse_mac(const char *s, uint8_t out[6]) {
   unsigned int b[6]; int i;
   if(sscanf(s,"%2x:%2x:%2x:%2x:%2x:%2x",&b[0],&b[1],&b[2],&b[3],&b[4],&b[5])!=6) return -1;
-  for(i=0;i<6;i++) out[i]=(uint8_t)b[i]; return 0;
+  for(i=0;i<6;i++) out[i]=(uint8_t)b[5-i]; return 0;
 }
 static JSValue js_send(JSContext *ctx, JSValueConst th, int argc, JSValueConst *argv) {
   const char *mac,*path; uint8_t addrbytes[6]; hf_sockaddr_rc addr; int fd=-1,in=-1; struct stat st;
