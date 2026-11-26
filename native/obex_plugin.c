@@ -184,7 +184,7 @@ static void receive_put(int fd, unsigned char *packet, size_t packet_len, int fi
       } else if (id == 0x48 || id == 0x49) {
         if (append_body(transfer, p + 2, data_len)) failed = 1;
       }
-      p += field_len - 2;
+      p += field_len - 1;
     } else if (kind == 2) {
       if (end - p < 1) { failed = 1; break; }
       p += 1;
@@ -258,15 +258,19 @@ static void handle_client(int fd) {
   free(packet);
   reset_transfer(&transfer, 1);
 }
-static int run_sdptool(const char *action) {
+static int run_sdptool(int add) {
   pid_t pid = fork(); int status = 0;
   if (pid < 0) return -1;
-  if (pid == 0) { execlp("sdptool", "sdptool", action, "--channel=9", "OPUSH", (char *)NULL); _exit(127); }
+  if (pid == 0) {
+    if (add) execlp("sdptool", "sdptool", "add", "--channel=9", "OPUSH", (char *)NULL);
+    else execlp("sdptool", "sdptool", "del", "OPUSH", (char *)NULL);
+    _exit(127);
+  }
   if (waitpid(pid, &status, 0) < 0) return -1;
   return WIFEXITED(status) && WEXITSTATUS(status) == 0 ? 0 : -1;
 }
-static int register_sdp(void) { return run_sdptool("add"); }
-static void unregister_sdp(void) { (void)run_sdptool("del"); }
+static int register_sdp(void) { return run_sdptool(1); }
+static void unregister_sdp(void) { (void)run_sdptool(0); }
 static void *server_main(void *unused) {
   int server; hf_sockaddr_rc addr; (void)unused;
   if (register_sdp() == 0) { pthread_mutex_lock(&g_lock); g_sdp_registered = 1; pthread_mutex_unlock(&g_lock); }
