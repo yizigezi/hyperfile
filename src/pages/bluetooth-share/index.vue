@@ -22,7 +22,13 @@
           <div class="setting-action-card" v-for="device in devices" :key="device.address" @click="pairConnect(device.address)"><text class="setting-name">{{ device.name || device.address }}</text><text class="setting-description">{{ device.address }} · {{ device.connected ? "已连接" : (device.paired ? "已配对" : "点击配对并连接") }}</text><text class="setting-chevron">{{ device.connected ? "断开" : "连接" }}</text></div>
         </scroller></div>
         <div class="settings-card settings-card-about"><scroller class="card-scroll" scroll-y="true" show-scrollbar="false">
-          <text class="section-heading">文件传输</text>
+          <text class="section-heading">标准蓝牙文件接收</text>
+          <text class="setting-name">OBEX Object Push · Channel 9</text>
+          <text class="setting-description">兼容支持 OPP 的手机系统蓝牙分享。需要设备端 BlueZ 提供 sdptool。</text>
+          <div class="setting-action-card" @click="toggleObexReceiver"><text class="setting-name">{{ obexRunning ? "停止 OBEX 接收" : "开启 OBEX 接收" }}</text><text class="setting-description">{{ obexRunning ? "正在等待手机发送文件" : "让手机通过系统蓝牙分享发送文件" }}</text><text class="setting-chevron">{{ obexRunning ? "停止" : "启动" }}</text></div>
+          <text class="settings-note">SDP：{{ obexSdpRegistered ? "已注册" : "未确认" }} · 已接收 {{ obexReceived }} 个 · 最近：{{ obexLastFile || "暂无" }}</text>
+          <divider />
+          <text class="section-heading">HyperFile 自定义传输</text>
           <text class="setting-name">RFCOMM · Channel 7</text>
           <text class="setting-description">自定义 HFBT 协议，不依赖 OBEX。接收文件保存到 /userdisk/Favorite/HyperFile。</text>
           <div class="setting-action-card" @click="toggleReceiver"><text class="setting-name">{{ receiverRunning ? '停止接收' : '开启接收' }}</text><text class="setting-description">{{ receiverRunning ? '正在监听蓝牙文件' : '开启后允许兼容端发送文件' }}</text><text class="setting-chevron">{{ receiverRunning ? '停止' : '启动' }}</text></div>
@@ -50,7 +56,11 @@ export default {
       adapterReady: false,
       adapterInfo: '',
       devices: [],
-      toast: ''
+      toast: '',
+      obexRunning: false,
+      obexSdpRegistered: false,
+      obexReceived: 0,
+      obexLastFile: ''
     }
   },
   onShow() {
@@ -136,6 +146,23 @@ export default {
         this.receiverLastFile = status.lastFile || ''
         this.showToast(this.receiverRunning ? '蓝牙接收服务已启动，通道 7' : '蓝牙接收服务已停止')
       } catch (e) { this.showToast('蓝牙接收服务失败：' + (e && e.message ? e.message : e)) }
+    },
+    async toggleObexReceiver() {
+      try {
+        const obex = await import('hyperfile_obex').then((m) => m.default || m)
+        if (this.obexRunning) await obex.stopServer()
+        else await obex.startServer('/userdisk/Favorite/HyperFile')
+        let status = await obex.status()
+        for (let i = 0; i < 20 && !status.running && !this.obexRunning; i++) {
+          await new Promise((resolve) => this.$page.setTimeout(resolve, 150))
+          status = await obex.status()
+        }
+        this.obexRunning = !!status.running
+        this.obexSdpRegistered = !!status.sdpRegistered
+        this.obexReceived = status.received || 0
+        this.obexLastFile = status.lastFile || ''
+        this.showToast(this.obexRunning ? 'OBEX 接收服务已启动' : 'OBEX 启动未成功，请检查 BlueZ / sdptool')
+      } catch (e) { this.showToast('OBEX 服务失败：' + (e && e.message ? e.message : e)) }
     },
     async sendBluetoothFile() {
       const mac = String(this.sendMac || '').trim().toUpperCase()
