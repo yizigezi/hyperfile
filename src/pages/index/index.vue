@@ -162,7 +162,7 @@
       <div class="dialog-card file-actions-card">
         <text class="dialog-title file-actions-title">{{ selectedEntry ? selectedEntry.name : '' }}</text>
         <text class="dialog-description file-actions-meta">{{ selectedEntry ? (selectedEntry.isDirectory ? '文件夹' : (selectedEntry.extension || '文件') + ' · ' + formatSize(selectedEntry.size)) : '' }}</text>
-        <scroll class="file-actions-scroll" scroll-y="true">
+        <scroller class="file-actions-scroll" scroll-y="true" show-scrollbar="false">
         <text class="file-actions-section">打开方式</text>
         <div class="file-action-row" v-if="selectedEntry && !selectedEntry.isDirectory && textExtensions[selectedEntry.extension]" @click="selectOpenWith('read')">
           <text class="file-action-name">文本阅读器</text>
@@ -177,7 +177,7 @@
           <text class="file-action-description">通过原生任务执行器运行脚本</text>
         </div>
         <text class="file-actions-empty" v-if="selectedEntry && !selectedEntry.isDirectory && !textExtensions[selectedEntry.extension] && selectedEntry.extension !== 'AMR' && selectedEntry.extension !== 'SH'">暂无可用打开方式</text>
-        </scroll>
+        </scroller>
         <div class="dialog-actions file-actions-actions">
           <div class="dialog-button" @click="showFileActions = false">
             <text class="dialog-button-label">关闭</text>
@@ -272,9 +272,9 @@
 <script>
 import FlQrcode from 'falcon-ui/src/packages/qr-code/index.vue'
 import { fs } from '../../utils/FileSystem/FileSystem.js'
-import { setReaderTarget } from '../../utils/ReaderSession.js'
-
 const UPLOAD_DIR = '/userdisk/Favorite/HyperFile'
+const DATA_DIR = '/userdisk/HyperFile_Data'
+const LAST_PATH_FILE = DATA_DIR + '/last-directory.json'
 const PORT = 8080
 
 async function getHttp() {
@@ -344,6 +344,7 @@ export default {
     return {
       page: 'local',
       currentPath: '/',
+      lastPathRestored: false,
       entries: [],
       localLoading: false,
       localError: '',
@@ -371,7 +372,11 @@ export default {
       scriptRunning: false
     }
   },
-  onShow() {
+  async onShow() {
+    if (!this.lastPathRestored) {
+      await this.restoreLastPath()
+      this.lastPathRestored = true
+    }
     this.refreshLocal()
     this.refreshShare()
   },
@@ -390,6 +395,25 @@ export default {
       if (value < 1024) return value + ' B'
       if (value < 1024 * 1024) return (value / 1024).toFixed(1) + ' KB'
       return (value / (1024 * 1024)).toFixed(1) + ' MB'
+    },
+    async restoreLastPath() {
+      try {
+        const raw = await fs.readFile(LAST_PATH_FILE)
+        const state = JSON.parse(String(raw || ''))
+        const path = normalizePath(state && state.path)
+        await fs.readdir(path)
+        this.currentPath = path
+      } catch (e) {
+        this.currentPath = '/'
+      }
+    },
+    async saveLastPath() {
+      try {
+        await fs.mkdir(DATA_DIR)
+        await fs.writeFile(LAST_PATH_FILE, JSON.stringify({ path: this.currentPath }))
+      } catch (e) {
+        console.log('[HyperFile] 保存上次目录失败:', e)
+      }
     },
     async refreshLocal() {
       this.localLoading = true
@@ -434,11 +458,13 @@ export default {
       while (path.length > 1 && path.charAt(path.length - 1) === '/') path = path.slice(0, -1)
       const index = path.lastIndexOf('/')
       this.currentPath = index <= 0 ? '/' : path.slice(0, index)
+      this.saveLastPath()
       this.refreshLocal()
     },
     openLocalEntry(entry) {
       if (entry.isDirectory) {
         this.currentPath = normalizePath(entry.path)
+        this.saveLastPath()
         this.refreshLocal()
         return
       }
@@ -446,8 +472,12 @@ export default {
       this.showFileActions = true
     },
     openReader(entry) {
-      setReaderTarget(entry.path, entry.name)
-      $falcon.navTo('reader')
+      if (!entry || !entry.path) {
+        this.showToast('文件路径无效')
+        return
+      }
+      // 与 readex 原版一致：通过 Falcon 页面参数传递文件路径
+      $falcon.navTo('reader', { path: entry.path, name: entry.name })
     },
     selectOpenWith(type) {
       const entry = this.selectedEntry
