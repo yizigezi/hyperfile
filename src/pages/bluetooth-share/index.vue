@@ -1,45 +1,36 @@
 <template>
-  <div class="share-manager-page">
-    <div class="share-manager-header">
-      <div class="manager-back" @click="goBack">
-        <image class="material-icon" src="/assets/icons/arrow_back.png" />
-      </div>
-      <text class="share-manager-title">蓝牙共享</text>
-      <div class="manager-spacer"></div>
-      <div class="manager-refresh" @click="refreshStatus">
-        <image class="material-icon" src="/assets/icons/refresh.png" />
-      </div>
+  <div class="app-page">
+    <div class="app-topbar">
+      <div class="icon-btn" @click="goBack"><image class="material-icon" src="/assets/icons/arrow_back.png" /></div>
+      <text class="app-title">蓝牙共享</text><div class="top-spacer"></div>
+      <div class="icon-btn" @click="refreshStatus"><image class="material-icon" src="/assets/icons/refresh.png" /></div>
     </div>
-    <scroller class="share-manager-content" scroll-y="true" show-scrollbar="false">
-      <div class="manager-panel">
-        <text class="section-heading">蓝牙适配器</text>
-        <text class="manager-status">{{ adapterReady ? '蓝牙已就绪' : '正在检查蓝牙环境' }}</text>
-        <text class="manager-description">{{ adapterInfo || '检测设备蓝牙控制器与 BlueZ 工具' }}</text>
-        <div class="manager-actions" :style="{flexDirection: 'row'}">
-          <div class="manager-action" @click="scanDevices"><text class="manager-action-label">搜索设备</text></div>
-          <div class="manager-action" @click="enablePairing"><text class="manager-action-label">开放配对</text></div>
-        </div>
-      </div>
-      <div class="manager-panel">
-        <text class="section-heading">附近设备</text>
-        <text class="manager-description">搜索结果由系统 bluetoothctl 提供</text>
-        <text class="manager-device" v-for="device in devices" :key="device">{{ device }}</text>
-        <text class="manager-description" v-if="devices.length === 0">尚无设备列表，点击“搜索设备”</text>
-      </div>
-      <div class="manager-panel">
-        <text class="section-heading">文件传输能力</text>
-        <text class="manager-capability" v-for="item in capabilities" :key="item.name">{{ item.name }}：{{ item.available ? '可用' : '未找到' }}</text>
-        <text class="manager-description">双向文件传输需要设备端具备 OBEX 服务/客户端。此页面会检查工具是否存在；未检测到时不会显示为可传输。</text>
-      </div>
-      <div class="manager-panel">
-        <text class="section-heading">收发目录</text>
-        <text class="manager-path">/userdisk/Favorite/HyperFile</text>
-      </div>
-    </scroller>
+    <div class="page-body share-page">
+      <scroller class="share-shelf" :style="{flexDirection: 'row'}" scroll-direction="horizontal" show-scrollbar="false">
+        <div class="settings-card settings-card-wide"><scroller class="card-scroll" scroll-y="true" show-scrollbar="false">
+          <text class="section-heading">蓝牙适配器</text><text class="setting-name">{{ adapterReady ? '蓝牙已就绪' : '未就绪' }}</text>
+          <text class="setting-description">{{ adapterInfo || '检测设备蓝牙控制器与 BlueZ' }}</text>
+          <div class="setting-action-card" @click="refreshStatus"><text class="setting-name">刷新状态</text><text class="setting-chevron">检查</text></div>
+        </scroller></div>
+        <div class="settings-card settings-card-actions"><scroller class="card-scroll" scroll-y="true" show-scrollbar="false">
+          <text class="section-heading">附近设备</text>
+          <div class="setting-action-card" @click="scanDevices"><text class="setting-name">搜索设备</text><text class="setting-description">扫描附近可发现的蓝牙设备</text></div>
+          <div class="setting-action-card" @click="enablePairing"><text class="setting-name">开放配对</text><text class="setting-description">允许其他设备发现并配对</text></div>
+        </scroller></div>
+        <div class="settings-card settings-card-wide"><scroller class="card-scroll" scroll-y="true" show-scrollbar="false">
+          <text class="section-heading">设备列表</text><text class="setting-description" v-if="devices.length === 0">搜索后显示设备</text>
+          <text class="manager-device" v-for="device in devices" :key="device">{{ device }}</text>
+        </scroller></div>
+        <div class="settings-card settings-card-about"><scroller class="card-scroll" scroll-y="true" show-scrollbar="false">
+          <text class="section-heading">文件传输</text><text class="setting-name">不依赖 OBEX</text>
+          <text class="setting-description">词典笔系统没有 OBEX。后续采用自定义蓝牙文件传输协议实现双向收发，不依赖 obexd / obexftp。</text>
+          <text class="settings-note">当前版本仅提供适配器检查、搜索和配对控制，文件收发尚未实现。</text>
+        </scroller></div>
+      </scroller>
+    </div>
     <div class="toast" v-if="toast"><text class="toast-text">{{ toast }}</text></div>
   </div>
 </template>
-
 <script>
 import { fs } from '../../utils/FileSystem/FileSystem.js'
 const DATA_DIR = '/userdisk/HyperFile_Data'
@@ -52,9 +43,7 @@ export default {
       adapterReady: false,
       adapterInfo: '',
       devices: [],
-      capabilities: [],
       toast: '',
-      runningTask: false
     }
   },
   onShow() {
@@ -81,10 +70,6 @@ export default {
     parseOutput(output) {
       const lines = String(output || '').split(/\r?\n/).map((line) => line.trim()).filter(Boolean)
       this.devices = lines.filter((line) => line.indexOf('Device ') === 0).map((line) => line.replace(/^Device\s+/, ''))
-      this.capabilities = ['bluetoothctl', 'obexd', 'obexftp', 'obexctl'].map((name) => ({
-        name,
-        available: lines.indexOf('TOOL:' + name) >= 0
-      }))
       this.adapterReady = lines.indexOf('ADAPTER:UP') >= 0
       const info = lines.find((line) => line.indexOf('ADAPTER:') === 0 && line !== 'ADAPTER:UP')
       this.adapterInfo = info ? info.slice(8) : (this.adapterReady ? 'hci0 / BlueZ' : '未检测到可用适配器')
