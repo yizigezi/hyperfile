@@ -95,7 +95,6 @@
 <script>
 import { fs } from '../../utils/FileSystem/FileSystem.js'
 import { buildPages, chapterIndexOf } from '../../utils/JsPagination.js'
-const READER_TARGET_FILE = '/userdisk/Favorite/HyperFile/.reader-target.json'
 
 function decodeText(value) {
   if (typeof value === 'string') return value
@@ -164,19 +163,18 @@ export default {
       tocVisible: false
     }
   },
-  async onShow() {
-    try {
-      const payload = await fs.readFile(READER_TARGET_FILE)
-      const target = JSON.parse(decodeText(payload))
-      if (!target || !target.path) throw new Error('阅读目标路径为空')
-      if (target.path !== this.filePath) {
-        this.filePath = target.path
-        this.readerTitle = target.name || target.path.split('/').pop() || '文本阅读器'
-        await this.loadText()
-      }
-    } catch (e) {
-      if (!this.filePath) this.rawText = '读取阅读目标失败：' + (e && e.message ? e.message : e)
+  async created() {
+    // readex 原版在 created 中直接读取 Falcon 路由参数；
+    // HyperFile 的 BasePage 会在页面组件创建前保存 $page.options。
+    const options = this.$page && this.$page.options ? this.$page.options : {}
+    const path = options.path
+    if (!path) {
+      this.rawText = '未收到文件路径参数'
+      return
     }
+    this.filePath = path
+    this.readerTitle = options.name || path.split('/').pop() || '文本阅读器'
+    await this.loadText()
   },
   computed: {
     textStyle() {
