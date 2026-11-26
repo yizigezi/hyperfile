@@ -19,7 +19,7 @@
         </scroller></div>
         <div class="settings-card settings-card-wide"><scroller class="card-scroll" scroll-y="true" show-scrollbar="false">
           <text class="section-heading">设备列表</text><text class="setting-description" v-if="devices.length === 0">搜索后显示设备</text>
-          <text class="manager-device" v-for="device in devices" :key="device">{{ device }}</text>
+          <div class="setting-action-card" v-for="device in devices" :key="device.address" @click="pairConnect(device.address)"><text class="setting-name">{{ device.name || device.address }}</text><text class="setting-description">{{ device.address }} · {{ device.connected ? "已连接" : (device.paired ? "已配对" : "点击配对并连接") }}</text><text class="setting-chevron">{{ device.connected ? "断开" : "连接" }}</text></div>
         </scroller></div>
         <div class="settings-card settings-card-about"><scroller class="card-scroll" scroll-y="true" show-scrollbar="false">
           <text class="section-heading">文件传输</text><text class="setting-name">不依赖 OBEX</text>
@@ -94,7 +94,7 @@ export default {
         this.showToast('搜索失败：' + (e && e.message ? e.message : e))
       }
     },
-    async enablePairing() {
+    async pairConnect(address) {\n      const mac = String(address || '').toUpperCase()\n      if (!/^([0-9A-F]{2}:){5}[0-9A-F]{2}$/.test(mac)) { this.showToast('设备地址无效'); return }\n      try {\n        this.showToast('正在配对并连接…')\n        const output = await this.runShell('bluetoothctl power on >/dev/null 2>&1; bluetoothctl pair ' + mac + ' 2>&1; bluetoothctl trust ' + mac + ' 2>&1; bluetoothctl connect ' + mac + ' 2>&1; bluetoothctl info ' + mac + ' 2>&1')\n        const connected = /Connected:\\s*yes/i.test(output)\n        const paired = /Paired:\\s*yes/i.test(output)\n        const device = this.devices.find((item) => item.address === mac)\n        if (device) { device.connected = connected; device.paired = paired }\n        this.showToast(connected ? '设备已连接' : (paired ? '已配对，连接未成功' : '配对或连接失败'))\n      } catch (e) { this.showToast('连接失败：' + (e && e.message ? e.message : e)) }\n    },\n    async enablePairing() {
       try {
         await this.runShell('bluetoothctl power on >/dev/null 2>&1; bluetoothctl pairable on; bluetoothctl discoverable on')
         this.showToast('已开启可配对与可发现')
