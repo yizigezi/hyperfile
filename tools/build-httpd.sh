@@ -55,8 +55,8 @@ cp "$OUT/libjsapi_hyperfile_bluetooth.so" "$LIBS/libjsapi_hyperfile_bluetooth.so
 chmod 755 "$LIBS/libjsapi_hyperfile_bluetooth.so"
 
 echo "== Build native OBEX OPP receiver JSAPI =="
-"${CC[@]}" -shared -fPIC -O2 -g0 -fvisibility=hidden \\
-  -I "$INC" "$INC/obex_plugin.c" -lpthread \\
+"${CC[@]}" -shared -fPIC -O2 -g0 -fvisibility=hidden \
+  -I "$INC" "$INC/obex_plugin.c" -lpthread \
   -o "$OUT/libjsapi_hyperfile_obex.so"
 cp "$OUT/libjsapi_hyperfile_obex.so" "$LIBS/libjsapi_hyperfile_obex.so"
 chmod 755 "$LIBS/libjsapi_hyperfile_obex.so"
