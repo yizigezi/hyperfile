@@ -63,7 +63,9 @@ readelf -h "$LIBS/libjsapi_hyperfile_http.so" | grep -E 'Class:|Machine:'
 readelf -A "$LIBS/libjsapi_hyperfile_http.so" | grep 'Tag_ABI_VFP_args' || true
 readelf -h "$LIBS/libjsapi_hyperfile_local_ops.so" | grep -E 'Class:|Machine:'
 readelf -A "$LIBS/libjsapi_hyperfile_local_ops.so" | grep 'Tag_ABI_VFP_args' || true
-for f in "$LIBS/libhyperfile-httpd.so" "$LIBS/libhyperfile-updater.so" "$LIBS/libjsapi_hyperfile_http.so" "$LIBS/libjsapi_hyperfile_local_ops.so"; do
+readelf -h "$LIBS/libjsapi_hyperfile_bluetooth.so" | grep -E "Class:|Machine:"
+readelf -A "$LIBS/libjsapi_hyperfile_bluetooth.so" | grep "Tag_ABI_VFP_args" || true
+for f in "$LIBS/libhyperfile-httpd.so" "$LIBS/libhyperfile-updater.so" "$LIBS/libjsapi_hyperfile_http.so" "$LIBS/libjsapi_hyperfile_local_ops.so" "$LIBS/libjsapi_hyperfile_bluetooth.so"; do
   max=$(readelf -V "$f" 2>/dev/null | grep -o 'GLIBC_[0-9.]*' | sort -uV | tail -1 || true)
   echo "$f GLIBC max: ${max:-none}"
   if [ -n "$max" ] && [ "$(printf '%s\n%s\n' "$GLIBC" "${max#GLIBC_}" | sort -V | tail -1)" != "$GLIBC" ]; then
