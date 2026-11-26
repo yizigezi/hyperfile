@@ -1,6 +1,8 @@
 {
   "pages": {
     "index": "pages/index/index.vue",
-    "reader": "pages/reader/reader.vue"
+    "reader": "pages/reader/reader.vue",
+    "wifi-share": "pages/wifi-share/index.vue",
+    "bluetooth-share": "pages/bluetooth-share/index.vue"
   }
 }

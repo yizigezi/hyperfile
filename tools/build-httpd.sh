@@ -47,6 +47,20 @@ echo "== Build native local operations JSAPI =="
 cp "$OUT/libjsapi_hyperfile_local_ops.so" "$LIBS/libjsapi_hyperfile_local_ops.so"
 chmod 755 "$LIBS/libjsapi_hyperfile_local_ops.so"
 
+echo "== Build native Bluetooth RFCOMM JSAPI =="
+"${CC[@]}" -shared -fPIC -O2 -g0 -fvisibility=hidden \
+  -I "$INC" "$INC/bluetooth_plugin.c" -lpthread \
+  -o "$OUT/libjsapi_hyperfile_bluetooth.so"
+cp "$OUT/libjsapi_hyperfile_bluetooth.so" "$LIBS/libjsapi_hyperfile_bluetooth.so"
+chmod 755 "$LIBS/libjsapi_hyperfile_bluetooth.so"
+
+echo "== Build native OBEX OPP receiver JSAPI =="
+"${CC[@]}" -shared -fPIC -O2 -g0 -fvisibility=hidden \
+  -I "$INC" "$INC/obex_plugin.c" -lpthread \
+  -o "$OUT/libjsapi_hyperfile_obex.so"
+cp "$OUT/libjsapi_hyperfile_obex.so" "$LIBS/libjsapi_hyperfile_obex.so"
+chmod 755 "$LIBS/libjsapi_hyperfile_obex.so"
+
 echo "== ELF checks =="
 readelf -h "$LIBS/libhyperfile-httpd.so" | grep -E 'Class:|Machine:'
 readelf -A "$LIBS/libhyperfile-httpd.so" | grep 'Tag_ABI_VFP_args' || true
@@ -56,7 +70,11 @@ readelf -h "$LIBS/libjsapi_hyperfile_http.so" | grep -E 'Class:|Machine:'
 readelf -A "$LIBS/libjsapi_hyperfile_http.so" | grep 'Tag_ABI_VFP_args' || true
 readelf -h "$LIBS/libjsapi_hyperfile_local_ops.so" | grep -E 'Class:|Machine:'
 readelf -A "$LIBS/libjsapi_hyperfile_local_ops.so" | grep 'Tag_ABI_VFP_args' || true
-for f in "$LIBS/libhyperfile-httpd.so" "$LIBS/libhyperfile-updater.so" "$LIBS/libjsapi_hyperfile_http.so" "$LIBS/libjsapi_hyperfile_local_ops.so"; do
+readelf -h "$LIBS/libjsapi_hyperfile_bluetooth.so" | grep -E "Class:|Machine:"
+readelf -h "$LIBS/libjsapi_hyperfile_obex.so" | grep -E "Class:|Machine:"
+readelf -A "$LIBS/libjsapi_hyperfile_bluetooth.so" | grep "Tag_ABI_VFP_args" || true
+readelf -A "$LIBS/libjsapi_hyperfile_obex.so" | grep "Tag_ABI_VFP_args" || true
+for f in "$LIBS/libhyperfile-httpd.so" "$LIBS/libhyperfile-updater.so" "$LIBS/libjsapi_hyperfile_http.so" "$LIBS/libjsapi_hyperfile_local_ops.so" "$LIBS/libjsapi_hyperfile_bluetooth.so" "$LIBS/libjsapi_hyperfile_obex.so"; do
   max=$(readelf -V "$f" 2>/dev/null | grep -o 'GLIBC_[0-9.]*' | sort -uV | tail -1 || true)
   echo "$f GLIBC max: ${max:-none}"
   if [ -n "$max" ] && [ "$(printf '%s\n%s\n' "$GLIBC" "${max#GLIBC_}" | sort -V | tail -1)" != "$GLIBC" ]; then

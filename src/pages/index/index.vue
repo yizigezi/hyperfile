@@ -22,9 +22,6 @@
       <div class="icon-btn gap-left" v-if="page === 'local'" @click="refreshLocal">
         <image class="material-icon" src="/assets/icons/refresh.png" />
       </div>
-      <div class="icon-btn gap-left" v-if="page === 'share'" @click="refreshShare">
-        <image class="material-icon" src="/assets/icons/refresh.png" />
-      </div>
     </div>
 
     <!-- 本地文件：readex-nt 横向卡片书架 -->
@@ -45,53 +42,20 @@
       </scroller>
     </div>
 
-    <!-- 文件共享：服务与共享目录均为横向卡片 -->
+    <!-- 文件共享入口：进入独立管理页面 -->
     <div class="page-body share-page" v-else-if="page === 'share'">
       <scroller class="share-shelf" :style="{flexDirection: 'row'}" scroll-direction="horizontal" show-scrollbar="false">
-        <div class="share-feature-card">
-          <scroller class="card-scroll" scroll-y="true" show-scrollbar="false">
-            <text class="section-heading">Wi-Fi 文件共享</text>
-            <text class="section-subtitle">{{ running ? '手机或电脑连接同一 Wi-Fi 后扫码访问' : '启动服务后，通过浏览器传输和管理文件' }}</text>
-            <div class="share-qr-panel">
-              <FlQrcode v-if="running && qrUrl" :text="qrUrl" :size="104" />
-              <text class="share-address" v-if="running">{{ qrUrl }}</text>
-              <text class="share-muted" v-if="running && updateToken">更新验证码：{{ updateToken }}</text>
-              <text class="share-muted" v-if="!running">服务尚未启动</text>
-            </div>
-            <div :class="running ? 'primary-action action-stop' : 'primary-action'" @click="Toggle">
-              <text :class="running ? 'primary-action-label-stop' : 'primary-action-label'">{{ running ? '停止共享服务' : (initialized ? '启动共享服务' : '初始化并启动') }}</text>
-            </div>
-            <text class="share-footnote">网页端支持上传、下载、复制、删除和 AMR 安装</text>
-          </scroller>
+        <div class="share-entry-card" @click="openShareManager('wifi-share')">
+          <text class="share-entry-symbol">Wi‑Fi</text>
+          <text class="section-heading">Wi-Fi 共享</text>
+          <text class="share-entry-description">通过同一网络浏览器传输文件</text>
+          <text class="share-entry-action">管理共享服务 →</text>
         </div>
-        <div class="share-directory-card">
-          <scroller class="card-scroll" scroll-y="true" show-scrollbar="false">
-            <text class="section-heading">共享目录</text>
-            <text class="share-directory-path">/userdisk/Favorite/HyperFile</text>
-            <div class="share-file-summary">
-              <text class="share-file-count">{{ files.length }}</text>
-              <text class="share-file-count-label">个文件</text>
-            </div>
-            <div v-if="files.length === 0" class="shared-empty">
-              <text class="empty-text">目录暂无文件</text>
-            </div>
-            <div class="shared-file-row" v-for="f in files" :key="f">
-              <image class="shared-file-icon" :src="iconForName(f)" />
-              <text class="shared-file-name">{{ f }}</text>
-            </div>
-            <text class="side-footnote">完整文件操作请在浏览器文件管理器中进行</text>
-          </scroller>
-        </div>
-        <div class="share-info-card">
-          <scroller class="card-scroll" scroll-y="true" show-scrollbar="false">
-            <text class="section-heading">连接信息</text>
-            <text class="share-info-label">服务状态</text>
-            <text class="share-info-value">{{ running ? '运行中' : '已停止' }}</text>
-            <text class="share-info-label">监听端口</text>
-            <text class="share-info-value">8080</text>
-            <text class="share-info-label">累计接收</text>
-            <text class="share-info-value">{{ formatSize(received) }}</text>
-          </scroller>
+        <div class="share-entry-card" @click="openShareManager('bluetooth-share')">
+          <text class="share-entry-symbol">BT</text>
+          <text class="section-heading">蓝牙共享</text>
+          <text class="share-entry-description">配对设备并进行文件收发</text>
+          <text class="share-entry-action">管理蓝牙共享 →</text>
         </div>
       </scroller>
     </div>
@@ -378,13 +342,14 @@ export default {
       this.lastPathRestored = true
     }
     this.refreshLocal()
-    this.refreshShare()
   },
   methods: {
+    openShareManager(route) {
+      $falcon.navTo(route)
+    },
     switchPage(next) {
       this.page = next
       if (next === 'local') this.refreshLocal()
-      if (next === 'share') this.refreshShare()
     },
     showToast(message) {
       this.toast = message
