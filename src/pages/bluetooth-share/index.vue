@@ -43,7 +43,7 @@ export default {
       adapterReady: false,
       adapterInfo: '',
       devices: [],
-      toast: '',
+      toast: ''
     }
   },
   onShow() {
@@ -76,7 +76,7 @@ export default {
     },
     async refreshStatus() {
       try {
-        const output = await this.runShell('for tool in bluetoothctl obexd obexftp obexctl; do command -v "$tool" >/dev/null 2>&1 && echo "TOOL:$tool"; done\nif command -v bluetoothctl >/dev/null 2>&1; then bluetoothctl show 2>/dev/null | grep -E "Powered:|Name:" | head -n 1; bluetoothctl devices 2>/dev/null; else echo "ADAPTER:bluetoothctl 不存在"; fi\nif hciconfig hci0 2>/dev/null | grep -q UP; then echo "ADAPTER:UP"; else echo "ADAPTER:DOWN"; fi')
+        const output = await this.runShell('if command -v bluetoothctl >/dev/null 2>&1; then bluetoothctl show 2>/dev/null | grep -E "Powered:|Name:" | head -n 1; bluetoothctl devices 2>/dev/null; else echo "ADAPTER:bluetoothctl 不存在"; fi\nif hciconfig hci0 2>/dev/null | grep -q UP; then echo "ADAPTER:UP"; else echo "ADAPTER:DOWN"; fi')
         this.parseOutput(output)
       } catch (e) {
         this.adapterReady = false
