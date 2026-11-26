@@ -1,29 +1,20 @@
-# HyperFile Bluetooth transfer protocol (HFBT v1)
+# HyperFile Bluetooth transfer protocols
 
-HyperFile uses Bluetooth Classic RFCOMM directly; it does not require OBEX.
+## OBEX Object Push Profile (OPP)
 
-- RFCOMM channel: 7
-- Service role: each endpoint can listen and send
-- Link: Bluetooth Classic RFCOMM; pair/trust the peer before connecting
-- Maximum accepted file size: 1 GiB
-- Receive directory on HyperFile: `/userdisk/Favorite/HyperFile`
+HyperFile implements an initial OBEX OPP receiver over Bluetooth Classic RFCOMM.
 
-## Frame
+- RFCOMM channel: 9
+- SDP registration: `sdptool add OPUSH` (requires BlueZ `sdptool`)
+- Receive directory: `/userdisk/Favorite/HyperFile`
+- Maximum file size: 1 GiB
+- Supported operations: OBEX CONNECT, PUT (including multi-packet PUT), DISCONNECT
+- Supported headers: Name (Unicode), Length, Body, End-of-Body
 
-All integers are unsigned big-endian.
+The receiver accepts standard OBEX packets and returns Continue while a non-final PUT is in progress, then Success after the final PUT. Received names are treated as basenames; path separators and control characters are rejected. Existing files are not overwritten.
 
-| Field | Size | Value |
-|---|---:|---|
-| Magic | 4 bytes | ASCII `HFBT` |
-| Filename length | 4 bytes | UTF-8 byte count, 1–255 |
-| File size | 8 bytes | Exact payload size |
-| Filename | N bytes | UTF-8 basename only |
-| Payload | File size | Raw file bytes |
+This is an initial receiver implementation, not yet verified against Android, iOS, or a physical dictionary pen. The BlueZ SDP registration command and RFCOMM channel behavior must be checked on the target firmware. OBEX authentication, resumable transfers, and the OBEX client/send direction are not implemented yet.
 
-The receiver must reject unknown magic, invalid lengths, oversized files, and names containing path separators or control characters. The destination name must be treated as an untrusted basename; never use a received path.
+## HFBT v1 (HyperFile-to-HyperFile)
 
-## Compatibility
-
-Both sending and receiving endpoints must implement this exact framing and listen on RFCOMM channel 7. A generic phone Bluetooth file-share UI that only supports OBEX will not interoperate. A companion client/app is required on the other device.
-
-The current HyperFile native module implements this framing for one file per RFCOMM connection. It does not yet provide encryption independent of the Bluetooth link, resume, directory transfer, or a phone-side companion app.
+The existing custom RFCOMM protocol remains available separately on channel 7. Both endpoints must implement HFBT v1; ordinary OBEX-only Bluetooth sharing clients cannot use it.
