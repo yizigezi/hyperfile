@@ -70,13 +70,13 @@ export default {
     parseDevices(lines) {
       const found = {}
       lines.filter((line) => line.indexOf('Device ') === 0).forEach((line) => {
-        const match = line.match(/^Device\\s+([0-9A-Fa-f:]{17})\\s*(.*)$/)
+        const match = line.match(/^Device\s+([0-9A-Fa-f:]{17})\s*(.*)$/)
         if (match) found[match[1].toUpperCase()] = { address: match[1].toUpperCase(), name: match[2] || '', paired: false, connected: false }
       })
       return Object.keys(found).map((address) => found[address])
     },
     parseOutput(output) {
-      const lines = String(output || '').split(/\\r?\\n/).map((line) => line.trim()).filter(Boolean)
+      const lines = String(output || '').split(/\r?\n/).map((line) => line.trim()).filter(Boolean)
       this.devices = this.parseDevices(lines)
       this.adapterReady = lines.indexOf('ADAPTER:UP') >= 0
       const info = lines.find((line) => line.indexOf('ADAPTER:') === 0 && line !== 'ADAPTER:UP')
@@ -96,13 +96,26 @@ export default {
       try {
         this.showToast('正在搜索蓝牙设备…')
         const output = await this.runShell('bluetoothctl power on >/dev/null 2>&1; bluetoothctl scan on >/dev/null 2>&1; sleep 8; bluetoothctl scan off >/dev/null 2>&1; bluetoothctl devices 2>/dev/null')
-        this.devices = this.parseDevices(String(output).split(/\\r?\\n/).map((line) => line.trim()).filter(Boolean))
+        this.devices = this.parseDevices(String(output).split(/\r?\n/).map((line) => line.trim()).filter(Boolean))
         this.showToast('搜索完成：' + this.devices.length + ' 台设备')
       } catch (e) {
         this.showToast('搜索失败：' + (e && e.message ? e.message : e))
       }
     },
-    async pairConnect(address) {\n      const mac = String(address || '').toUpperCase()\n      if (!/^([0-9A-F]{2}:){5}[0-9A-F]{2}$/.test(mac)) { this.showToast('设备地址无效'); return }\n      try {\n        this.showToast('正在配对并连接…')\n        const output = await this.runShell('bluetoothctl power on >/dev/null 2>&1; bluetoothctl pair ' + mac + ' 2>&1; bluetoothctl trust ' + mac + ' 2>&1; bluetoothctl connect ' + mac + ' 2>&1; bluetoothctl info ' + mac + ' 2>&1')\n        const connected = /Connected:\\s*yes/i.test(output)\n        const paired = /Paired:\\s*yes/i.test(output)\n        const device = this.devices.find((item) => item.address === mac)\n        if (device) { device.connected = connected; device.paired = paired }\n        this.showToast(connected ? '设备已连接' : (paired ? '已配对，连接未成功' : '配对或连接失败'))\n      } catch (e) { this.showToast('连接失败：' + (e && e.message ? e.message : e)) }\n    },\n    async enablePairing() {
+    async pairConnect(address) {
+      const mac = String(address || '').toUpperCase()
+      if (!/^([0-9A-F]{2}:){5}[0-9A-F]{2}$/.test(mac)) { this.showToast('设备地址无效'); return }
+      try {
+        this.showToast('正在配对并连接…')
+        const output = await this.runShell('bluetoothctl power on >/dev/null 2>&1; bluetoothctl pair ' + mac + ' 2>&1; bluetoothctl trust ' + mac + ' 2>&1; bluetoothctl connect ' + mac + ' 2>&1; bluetoothctl info ' + mac + ' 2>&1')
+        const connected = /Connected:\s*yes/i.test(output)
+        const paired = /Paired:\s*yes/i.test(output)
+        const device = this.devices.find((item) => item.address === mac)
+        if (device) { device.connected = connected; device.paired = paired }
+        this.showToast(connected ? '设备已连接' : (paired ? '已配对，连接未成功' : '配对或连接失败'))
+      } catch (e) { this.showToast('连接失败：' + (e && e.message ? e.message : e)) }
+    },
+    async enablePairing() {
       try {
         await this.runShell('bluetoothctl power on >/dev/null 2>&1; bluetoothctl pairable on; bluetoothctl discoverable on')
         this.showToast('已开启可配对与可发现')
