@@ -46,17 +46,13 @@
     <div class="page-body share-page" v-else-if="page === 'share'">
       <scroller class="share-shelf" :style="{flexDirection: 'row'}" scroll-direction="horizontal" show-scrollbar="false">
         <div class="share-entry-card" @click="openShareManager('wifi-share')">
-          <div class="share-entry-icon">
-            <image class="share-entry-image" src="/assets/icons/wifi.png" />
-          </div>
+          <text class="share-entry-symbol">Wi‑Fi</text>
           <text class="section-heading">Wi-Fi 共享</text>
           <text class="share-entry-description">通过同一网络浏览器传输文件</text>
           <text class="share-entry-action">管理共享服务 →</text>
         </div>
         <div class="share-entry-card" @click="openShareManager('bluetooth-share')">
-          <div class="share-entry-icon">
-            <image class="share-entry-image" src="/assets/icons/bluetooth.png" />
-          </div>
+          <text class="share-entry-symbol">BT</text>
           <text class="section-heading">蓝牙共享</text>
           <text class="share-entry-description">配对设备并进行文件收发</text>
           <text class="share-entry-action">管理蓝牙共享 →</text>
