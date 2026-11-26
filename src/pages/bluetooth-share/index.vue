@@ -108,11 +108,12 @@ export default {
       try {
         this.showToast('正在配对并连接…')
         const device = this.devices.find((item) => item.address === mac)
-        const command = device && device.connected ? 'bluetoothctl disconnect ' + mac : 'bluetoothctl power on >/dev/null 2>&1; bluetoothctl pair ' + mac + ' 2>&1; bluetoothctl trust ' + mac + ' 2>&1; bluetoothctl connect ' + mac + ' 2>&1
+        const command = device && device.connected
+          ? 'bluetoothctl disconnect ' + mac
+          : 'bluetoothctl power on >/dev/null 2>&1; bluetoothctl pair ' + mac + ' 2>&1; bluetoothctl trust ' + mac + ' 2>&1; bluetoothctl connect ' + mac + ' 2>&1'
         const output = await this.runShell(command + '; bluetoothctl info ' + mac + ' 2>&1')
-        const connected = /Connected:\s*yes/i.test(output)
-        const paired = /Paired:\s*yes/i.test(output)
-        const device = this.devices.find((item) => item.address === mac)
+        const connected = /Connected:\\s*yes/i.test(output)
+        const paired = /Paired:\\s*yes/i.test(output)
         if (device) { device.connected = connected; device.paired = paired }
         this.showToast(connected ? '设备已连接' : (paired ? '已配对，连接未成功' : '配对或连接失败'))
       } catch (e) { this.showToast('连接失败：' + (e && e.message ? e.message : e)) }
