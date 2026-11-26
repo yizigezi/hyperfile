@@ -5,7 +5,7 @@
 HyperFile implements an initial OBEX OPP receiver over Bluetooth Classic RFCOMM.
 
 - RFCOMM channel: 9
-- SDP registration: `sdptool add OPUSH` (requires BlueZ `sdptool`)
+- SDP registration: `sdptool add --channel=9 OPUSH` (requires BlueZ `sdptool`)
 - Receive directory: `/userdisk/Favorite/HyperFile`
 - Maximum file size: 1 GiB
 - Supported operations: OBEX CONNECT, PUT (including multi-packet PUT), DISCONNECT
