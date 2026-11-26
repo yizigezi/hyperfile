@@ -22,9 +22,16 @@
           <div class="setting-action-card" v-for="device in devices" :key="device.address" @click="pairConnect(device.address)"><text class="setting-name">{{ device.name || device.address }}</text><text class="setting-description">{{ device.address }} · {{ device.connected ? "已连接" : (device.paired ? "已配对" : "点击配对并连接") }}</text><text class="setting-chevron">{{ device.connected ? "断开" : "连接" }}</text></div>
         </scroller></div>
         <div class="settings-card settings-card-about"><scroller class="card-scroll" scroll-y="true" show-scrollbar="false">
-          <text class="section-heading">文件传输</text><text class="setting-name">不依赖 OBEX</text>
-          <text class="setting-description">词典笔系统没有 OBEX。后续采用自定义蓝牙文件传输协议实现双向收发，不依赖 obexd / obexftp。</text>
-          <text class="settings-note">当前版本仅提供适配器检查、搜索和配对控制，文件收发尚未实现。</text>
+          <text class="section-heading">文件传输</text>
+          <text class="setting-name">RFCOMM · Channel 7</text>
+          <text class="setting-description">自定义 HFBT 协议，不依赖 OBEX。接收文件保存到 /userdisk/Favorite/HyperFile。</text>
+          <div class="setting-action-card" @click="toggleReceiver"><text class="setting-name">{{ receiverRunning ? '停止接收' : '开启接收' }}</text><text class="setting-description">{{ receiverRunning ? '正在监听蓝牙文件' : '开启后允许兼容端发送文件' }}</text><text class="setting-chevron">{{ receiverRunning ? '停止' : '启动' }}</text></div>
+          <text class="setting-description">发送到设备 MAC</text>
+          <input class="setting-input" v-model="sendMac" placeholder="AA:BB:CC:DD:EE:FF" />
+          <text class="setting-description">词典笔上的文件完整路径</text>
+          <input class="setting-input" v-model="sendPath" placeholder="/userdisk/Favorite/example.txt" />
+          <div class="setting-action-card" @click="sendBluetoothFile"><text class="setting-name">发送文件</text><text class="setting-chevron">发送</text></div>
+          <text class="settings-note">已接收 {{ receiverReceived }} 个文件；最近：{{ receiverLastFile || '暂无' }}</text>
         </scroller></div>
       </scroller>
     </div>
@@ -117,6 +124,29 @@ export default {
         if (device) { device.connected = connected; device.paired = paired }
         this.showToast(connected ? '设备已连接' : (paired ? '已配对，连接未成功' : '配对或连接失败'))
       } catch (e) { this.showToast('连接失败：' + (e && e.message ? e.message : e)) }
+    },
+    async toggleReceiver() {
+      try {
+        const bt = await import('hyperfile_bluetooth').then((m) => m.default || m)
+        if (this.receiverRunning) await bt.stopServer()
+        else await bt.startServer('/userdisk/Favorite/HyperFile')
+        const status = await bt.status()
+        this.receiverRunning = !!status.running
+        this.receiverReceived = status.received || 0
+        this.receiverLastFile = status.lastFile || ''
+        this.showToast(this.receiverRunning ? '蓝牙接收服务已启动，通道 7' : '蓝牙接收服务已停止')
+      } catch (e) { this.showToast('蓝牙接收服务失败：' + (e && e.message ? e.message : e)) }
+    },
+    async sendBluetoothFile() {
+      const mac = String(this.sendMac || '').trim().toUpperCase()
+      const path = String(this.sendPath || '').trim()
+      if (!/^([0-9A-F]{2}:){5}[0-9A-F]{2}$/.test(mac) || !path) { this.showToast('请填写正确的 MAC 和文件路径'); return }
+      try {
+        const bt = await import('hyperfile_bluetooth').then((m) => m.default || m)
+        this.showToast('正在通过 RFCOMM 发送…')
+        await bt.sendFile(mac, path)
+        this.showToast('文件发送完成')
+      } catch (e) { this.showToast('发送失败：' + (e && e.message ? e.message : e)) }
     },
     async enablePairing() {
       try {
