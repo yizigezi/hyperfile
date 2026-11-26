@@ -272,7 +272,8 @@
 <script>
 import FlQrcode from 'falcon-ui/src/packages/qr-code/index.vue'
 import { fs } from '../../utils/FileSystem/FileSystem.js'
-import { setReaderTarget } from '../../utils/ReaderSession.js'
+// 页面间通过文件系统交接目标，避免独立页面 JS 上下文导致模块变量丢失
+const READER_TARGET_FILE = '/userdisk/Favorite/HyperFile/.reader-target.json'
 
 const UPLOAD_DIR = '/userdisk/Favorite/HyperFile'
 const PORT = 8080
@@ -445,9 +446,14 @@ export default {
       this.selectedEntry = entry
       this.showFileActions = true
     },
-    openReader(entry) {
-      setReaderTarget(entry.path, entry.name)
-      $falcon.navTo('reader')
+    async openReader(entry) {
+      try {
+        await fs.mkdir('/userdisk/Favorite/HyperFile')
+        await fs.writeFile(READER_TARGET_FILE, JSON.stringify({ path: entry.path, name: entry.name }))
+        $falcon.navTo('reader')
+      } catch (e) {
+        this.showToast('打开阅读器失败：' + (e && e.message ? e.message : e))
+      }
     },
     selectOpenWith(type) {
       const entry = this.selectedEntry
