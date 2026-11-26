@@ -180,7 +180,21 @@ export default {
         // 避免服务已起来但旧返回值导致 UI 报“启动失败”。
         if (!status.running) {
           this.showToast('正在启动共享服务…')
-          status = await this.waitForServer()
+          try {
+            status = await this.waitForServer()
+          } catch (pollError) {
+            // Some firmware builds report stale running state even though start
+            // has already launched the daemon. Re-read once and avoid a false
+            // "启动失败" toast when the start request itself succeeded.
+            status = await http.status()
+            if (!status.running) {
+              this.running = false
+              this.initialized = true
+              this.showToast('已发送启动请求，服务状态待刷新')
+              await this.RefreshStatus()
+              return
+            }
+          }
         }
         this.running = !!status.running
         this.ip = status.ip || ''
