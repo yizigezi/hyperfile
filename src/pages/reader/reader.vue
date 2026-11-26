@@ -95,7 +95,49 @@
 <script>
 import { fs } from '../../utils/FileSystem/FileSystem.js'
 import { buildPages, chapterIndexOf } from '../../utils/JsPagination.js'
-import { getReaderTarget } from '../../utils/ReaderSession.js'
+const READER_TARGET_FILE = '/userdisk/Favorite/HyperFile/.reader-target.json'
+
+function decodeText(value) {
+  if (typeof value === 'string') return value
+  if (value == null) return ''
+  if (typeof value.toString === 'function') {
+    try {
+      const decoded = value.toString('utf8')
+      if (typeof decoded === 'string' && decoded !== '[object Object]') return decoded
+    } catch (e) {}
+  }
+  let bytes = null
+  if (typeof ArrayBuffer !== 'undefined' && value instanceof ArrayBuffer) {
+    bytes = new Uint8Array(value)
+  } else if (typeof ArrayBuffer !== 'undefined' && ArrayBuffer.isView && ArrayBuffer.isView(value)) {
+    bytes = new Uint8Array(value.buffer, value.byteOffset, value.byteLength)
+  } else if (Array.isArray(value)) {
+    bytes = value
+  } else if (typeof value.data === 'string') {
+    return value.data
+  }
+  if (!bytes) return String(value)
+  let output = ''
+  for (let i = 0; i < bytes.length;) {
+    const b1 = bytes[i++] & 255
+    if (b1 < 0x80) output += String.fromCharCode(b1)
+    else if (b1 < 0xe0 && i < bytes.length) {
+      output += String.fromCharCode(((b1 & 0x1f) << 6) | (bytes[i++] & 0x3f))
+    } else if (b1 < 0xf0 && i + 1 < bytes.length) {
+      const b2 = bytes[i++] & 0x3f
+      const b3 = bytes[i++] & 0x3f
+      output += String.fromCharCode(((b1 & 0x0f) << 12) | (b2 << 6) | b3)
+    } else if (i + 2 < bytes.length) {
+      const b2 = bytes[i++] & 0x3f
+      const b3 = bytes[i++] & 0x3f
+      const b4 = bytes[i++] & 0x3f
+      const cp = ((b1 & 7) << 18) | (b2 << 12) | (b3 << 6) | b4
+      const value = cp - 0x10000
+      output += String.fromCharCode(0xd800 + (value >> 10), 0xdc00 + (value & 0x3ff))
+    } else output += '\ufffd'
+  }
+  return output
+}
 
 // readex-nt 阅读页几何（800 × 254 横屏）
 const TEXT_WIDTH = 624
@@ -118,12 +160,18 @@ export default {
       tocVisible: false
     }
   },
-  onShow() {
-    const target = getReaderTarget()
-    if (target.path && target.path !== this.filePath) {
-      this.filePath = target.path
-      this.readerTitle = target.name || target.path.split('/').pop() || '文本阅读器'
-      this.loadText()
+  async onShow() {
+    try {
+      const payload = await fs.readFile(READER_TARGET_FILE)
+      const target = JSON.parse(decodeText(payload))
+      if (!target || !target.path) throw new Error('阅读目标路径为空')
+      if (target.path !== this.filePath) {
+        this.filePath = target.path
+        this.readerTitle = target.name || target.path.split('/').pop() || '文本阅读器'
+        await this.loadText()
+      }
+    } catch (e) {
+      if (!this.filePath) this.rawText = '读取阅读目标失败：' + (e && e.message ? e.message : e)
     }
   },
   computed: {
@@ -153,7 +201,8 @@ export default {
       }
       try {
         const text = await fs.readFile(this.filePath)
-        this.rawText = typeof text === 'string' && text ? text : (text ? String(text) : '（空文件）')
+        const decoded = decodeText(text)
+        this.rawText = decoded.length ? decoded : '（空文件）'
       } catch (e) {
         this.rawText = '读取失败：' + (e && e.message ? e.message : e)
         return
