@@ -275,7 +275,8 @@ import { fs } from '../../utils/FileSystem/FileSystem.js'
 import { setReaderTarget } from '../../utils/ReaderSession.js'
 
 const UPLOAD_DIR = '/userdisk/Favorite/HyperFile'
-const LAST_PATH_FILE = '/userdisk/Favorite/.hyperfile-last-path.json'
+const DATA_DIR = '/userdisk/HyperFile_Data'
+const LAST_PATH_FILE = DATA_DIR + '/last-directory.json'
 const PORT = 8080
 
 async function getHttp() {
@@ -411,7 +412,7 @@ export default {
     },
     async saveLastPath() {
       try {
-        await fs.mkdir('/userdisk/Favorite')
+        await fs.mkdir(DATA_DIR)
         await fs.writeFile(LAST_PATH_FILE, JSON.stringify({ path: this.currentPath }))
       } catch (e) {
         console.log('[HyperFile] 保存上次目录失败:', e)
