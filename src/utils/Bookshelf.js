@@ -105,6 +105,39 @@ export async function removeBook(id) {
 }
 
 /**
+ * 修改书籍显示名称（不改动原文件名）。
+ */
+export async function renameBook(id, name) {
+  const title = String(name || '').trim()
+  if (!title) throw new Error('书名不能为空')
+  const list = await loadShelf()
+  let found = false
+  for (let i = 0; i < list.length; i++) {
+    if (list[i].id === id) {
+      list[i].name = title
+      found = true
+      break
+    }
+  }
+  if (!found) throw new Error('书籍不存在')
+  await saveShelf(list)
+  return list
+}
+
+/**
+ * 用新字号/行距重新生成书籍分页缓存，按原阅读进度比例恢复位置。
+ */
+export async function updateBookSettings(id, settings) {
+  const book = await getBook(id)
+  if (!book) throw new Error('书籍不存在')
+  const ratio = book.pageCount > 1 ? (book.progress || 0) / (book.pageCount - 1) : 0
+  const entry = await addBook(book.path, book.name, settings)
+  entry.progress = Math.round(ratio * Math.max(0, entry.pageCount - 1))
+  await updateProgress(entry.id, entry.progress)
+  return entry
+}
+
+/**
  * 加入（或按新设置重加）书架：分页 + 章节识别 + 分块落盘。
  * 同一路径的旧条目会被替换（重复加入 = 按当前设置重新分页）。
  */
