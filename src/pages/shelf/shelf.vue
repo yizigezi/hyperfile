@@ -30,7 +30,7 @@
         <text class="local-card-name">{{ book.name }}</text>
         <text class="local-card-meta">{{ book.pageCount }} 页 · 已读 {{ percentOf(book) }}%</text>
         <div class="shelf-remove" @click.stop="openBookSettings(book)">
-          <text class="shelf-remove-text">书籍设置</text>
+          <text class="shelf-settings-text">书籍设置</text>
         </div>
       </div>
     </scroller>
