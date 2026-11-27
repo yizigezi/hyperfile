@@ -23,13 +23,17 @@
     </div>
 
     <scroller v-else class="local-shelf" :style="{flexDirection: 'row'}" scroll-direction="horizontal" show-scrollbar="false">
-      <div class="local-file-card" v-for="book in books" :key="book.id" @click="openBook(book)">
-        <div class="local-card-cover">
-          <image class="local-card-icon" src="/assets/icons/text.png" />
+      <div class="local-file-card" v-for="book in books" :key="book.id">
+        <div class="local-card-open" @click="openBook(book)">
+          <div class="local-card-cover">
+            <image class="local-card-icon" src="/assets/icons/text.png" />
+          </div>
+          <div class="local-card-name-viewport">
+            <text class="local-card-name local-card-name-marquee">{{ book.name }}</text>
+          </div>
+          <text class="local-card-meta">{{ book.pageCount }} 页 · 已读 {{ percentOf(book) }}%</text>
         </div>
-        <text class="local-card-name">{{ book.name }}</text>
-        <text class="local-card-meta">{{ book.pageCount }} 页 · 已读 {{ percentOf(book) }}%</text>
-        <div class="shelf-remove" @click.stop="openBookSettings(book)">
+        <div class="shelf-remove" @click="openBookSettings(book)">
           <text class="shelf-settings-text">书籍设置</text>
         </div>
       </div>
