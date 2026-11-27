@@ -1073,3 +1073,53 @@
   background-color: @surface-container;
 }
 
+
+
+/* 书架设置与分页等待状态 */
+.shelf-settings-card {
+  width: 480px;
+  padding: 20px;
+}
+
+.shelf-rename-row {
+  width: 100%;
+  margin-top: 8px;
+  flex-direction: row;
+  align-items: center;
+}
+
+.shelf-rename-row .text-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.shelf-rename-row .dialog-button {
+  min-width: 84px;
+  margin-left: 8px;
+}
+
+.shelf-remove-settings {
+  height: 34px;
+  margin-top: 10px;
+  border-radius: 17px;
+  align-items: center;
+  justify-content: center;
+  background-color: @surface-container-highest;
+}
+
+.shelf-remove-settings .shelf-remove-text {
+  color: @error;
+}
+
+.shelf-settings-card .shelf-remove-text {
+  color: @on-surface-variant;
+}
+
+.shelf-loading-mask {
+  z-index: 50;
+}
+
+.shelf-loading-card {
+  width: 360px;
+  align-items: center;
+}
