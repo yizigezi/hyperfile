@@ -29,7 +29,7 @@
             <image class="local-card-icon" src="/assets/icons/text.png" />
           </div>
           <div class="local-card-name-viewport">
-            <text class="local-card-name local-card-name-marquee">{{ book.name }}</text>
+            <text :class="book.name && book.name.length > 12 ? 'local-card-name local-card-name-marquee' : 'local-card-name'">{{ book.name }}</text>
           </div>
           <text class="local-card-meta">{{ book.pageCount }} 页 · 已读 {{ percentOf(book) }}%</text>
         </div>
