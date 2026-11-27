@@ -327,7 +327,7 @@
 <script>
 import FlQrcode from 'falcon-ui/src/packages/qr-code/index.vue'
 import { fs, execShell } from '../../utils/FileSystem/FileSystem.js'
-import { setReaderTarget, getReaderSettings } from '../../utils/ReaderSession.js'
+import { setReaderTarget, getReaderSettings, loadReaderSettings } from '../../utils/ReaderSession.js'
 import { addBook } from '../../utils/Bookshelf.js'
 const UPLOAD_DIR = '/userdisk/Favorite/HyperFile'
 const DATA_DIR = '/userdisk/HyperFile_Data'
@@ -554,6 +554,7 @@ export default {
       if (!entry) return
       this.showToast('正在生成分页缓存…')
       try {
+        await loadReaderSettings()
         const book = await addBook(entry.path, entry.name, getReaderSettings())
         this.showToast('已加入书架：共 ' + book.pageCount + ' 页')
       } catch (e) {
