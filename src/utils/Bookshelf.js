@@ -70,7 +70,6 @@ export async function getBook(id) {
 }
 
 export async function loadChunk(id, index) {
-  await ensureShelfStorage()
   try {
     const text = await fs.readFile(chunkFile(id, index))
     const data = JSON.parse(text)
