@@ -23,6 +23,7 @@ let migrationPromise = null
 async function ensureShelfStorage() {
   if (!migrationPromise) {
     migrationPromise = (async () => {
+      await fs.mkdir('/userdisk/HyperFile_Data')
       if (!(await fs.exists(LEGACY_SHELF_DIR))) {
         await fs.mkdir(SHELF_DIR)
         return
