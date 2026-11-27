@@ -1,7 +1,7 @@
 /**
  * Bookshelf —— 书架存储（纯前端 JS + fs 门面）。
  *
- * 目录布局（/userdisk/HyperFile/bookshelf/）：
+ * 目录布局（/userdisk/HyperFile_Data/bookshelf/）：
  *   shelf.json        书籍清单（含元数据、章节目录、阅读进度）
  *   <id>/chunk-0.json 每 10 页一个分页缓存 {start, pages: [...]}
  *   <id>/chunk-1.json …
@@ -9,11 +9,67 @@
  * 加入书架时即按当前字号/行距完成分页与章节识别，阅读时按需读 chunk，
  * 打开书籍只需读 shelf.json + 一个 chunk，最大限度降低加载时间。
  */
-import { fs } from './FileSystem/FileSystem.js'
+import { fs, execShell } from './FileSystem/FileSystem.js'
 import { buildPages } from './JsPagination.js'
 
-const SHELF_DIR = '/userdisk/HyperFile/bookshelf'
+const SHELF_DIR = '/userdisk/HyperFile_Data/bookshelf'
 const SHELF_FILE = SHELF_DIR + '/shelf.json'
+const LEGACY_SHELF_DIR = '/userdisk/HyperFile/bookshelf'
+const LEGACY_SHELF_FILE = LEGACY_SHELF_DIR + '/shelf.json'
+let migrationPromise = null
+
+// 首次访问书架时迁移旧目录。若新旧目录同时存在，先补齐旧缓存文件，
+// 再合并书目，优先保留新目录中已有的条目，避免覆盖用户数据。
+async function ensureShelfStorage() {
+  if (!migrationPromise) {
+    migrationPromise = (async () => {
+      if (!(await fs.exists(LEGACY_SHELF_DIR))) {
+        await fs.mkdir(SHELF_DIR)
+        return
+      }
+
+      if (!(await fs.exists(SHELF_DIR))) {
+        await fs.mkdir('/userdisk/HyperFile_Data')
+        await execShell("mv '" + LEGACY_SHELF_DIR + "' '" + SHELF_DIR + "'")
+        return
+      }
+
+      const readList = async (path) => {
+        try {
+          if (!(await fs.exists(path))) return []
+          const value = JSON.parse(await fs.readFile(path))
+          return Array.isArray(value) ? value : []
+        } catch (e) {
+          return []
+        }
+      }
+      const oldList = await readList(LEGACY_SHELF_FILE)
+      const currentList = await readList(SHELF_FILE)
+      await execShell("cp -an '" + LEGACY_SHELF_DIR + "/.' '" + SHELF_DIR + "/'")
+
+      const merged = currentList.slice()
+      const ids = {}
+      const paths = {}
+      for (let i = 0; i < merged.length; i++) {
+        if (merged[i].id) ids[merged[i].id] = true
+        if (merged[i].path) paths[merged[i].path] = true
+      }
+      for (let i = 0; i < oldList.length; i++) {
+        const item = oldList[i]
+        if (!item || (item.id && ids[item.id]) || (item.path && paths[item.path])) continue
+        merged.push(item)
+        if (item.id) ids[item.id] = true
+        if (item.path) paths[item.path] = true
+      }
+      await fs.writeFile(SHELF_FILE, JSON.stringify(merged))
+      await fs.rm(LEGACY_SHELF_DIR)
+    })().catch((error) => {
+      migrationPromise = null
+      throw error
+    })
+  }
+  return migrationPromise
+}
 export const CHUNK_PAGES = 10
 
 // 与阅读页几何一致（800×254 横屏：文本区 624×230）
@@ -42,6 +98,7 @@ export function paginationOptions(settings) {
 }
 
 async function loadShelf() {
+  await ensureShelfStorage()
   try {
     if (!(await fs.exists(SHELF_FILE))) return []
     const text = await fs.readFile(SHELF_FILE)
@@ -70,6 +127,7 @@ export async function getBook(id) {
 }
 
 export async function loadChunk(id, index) {
+  await ensureShelfStorage()
   try {
     const text = await fs.readFile(chunkFile(id, index))
     const data = JSON.parse(text)
