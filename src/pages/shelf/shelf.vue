@@ -56,8 +56,8 @@
           </div>
         </div>
         <div v-if="settingsTarget" class="shelf-rename-row">
-          <input class="text-input" v-model="renameValue" placeholder="书籍名称" />
-          <div class="dialog-button dialog-button-primary" @click="renameSelected"><text class="dialog-button-primary-label">重命名</text></div>
+          <input class="text-input shelf-rename-input" v-model="renameValue" placeholder="书籍名称" />
+          <div class="dialog-button dialog-button-primary shelf-rename-button" @click="renameSelected"><text class="dialog-button-primary-label">重命名</text></div>
         </div>
         <div class="dialog-actions">
           <div class="dialog-button" @click="settingsVisible = false"><text class="dialog-button-label">取消</text></div>
