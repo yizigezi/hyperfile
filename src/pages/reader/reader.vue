@@ -32,7 +32,7 @@
       <div class="rail-button" v-if="mode === 'paged'" @click="nextPage">
         <image class="material-icon" src="/assets/icons/chevron_right.png" />
       </div>
-      <div class="rail-button" @click="toggleSettings">
+      <div class="rail-button" v-if="!book" @click="toggleSettings">
         <image class="material-icon" src="/assets/icons/settings.png" />
       </div>
     </div>
@@ -96,7 +96,7 @@
 <script>
 import { fs } from '../../utils/FileSystem/FileSystem.js'
 import { buildPages, chapterIndexOf } from '../../utils/JsPagination.js'
-import { getReaderTarget, getReaderSettings, setReaderSettings } from '../../utils/ReaderSession.js'
+import { getReaderTarget, getReaderSettings, setReaderSettings, loadReaderSettings } from '../../utils/ReaderSession.js'
 import { loadChunk, chunkIndexOf, CHUNK_PAGES, updateProgress, addBook } from '../../utils/Bookshelf.js'
 
 function decodeText(value) {
@@ -213,6 +213,8 @@ export default {
   },
   methods: {
     async loadTarget() {
+      await loadReaderSettings()
+      this.settings = getReaderSettings()
       // 双通道取参：ReaderSession 共享存储优先，Falcon 页面参数兜底
       const target = getReaderTarget()
       let path = target.path
