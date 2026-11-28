@@ -115,6 +115,26 @@ export function buildPages(text, options) {
   return { pages, chapters, totalLines: displayLines.length }
 }
 
+export async function buildPagesNative(text, options) {
+  try {
+    const native = await import('hyperfile_local_ops').then((m) => m.default || m)
+    if (!native || typeof native.buildPages !== 'function') return null
+    const started = Date.now()
+    const result = native.buildPages(
+      text,
+      Math.max(8, Math.floor(options.unitsPerLine) || 36),
+      Math.max(1, Math.floor(options.linesPerPage) || 8)
+    )
+    return {
+      result,
+      engine: 'native',
+      elapsedMs: Date.now() - started
+    }
+  } catch (e) {
+    return null
+  }
+}
+
 /** 当前页对应的章节下标（取页码不大于当前页的最后一个章节）。 */
 export function chapterIndexOf(chapters, page) {
   let index = -1

@@ -31,6 +31,7 @@
 #include <sys/types.h>
 #include <sys/un.h>
 #include <sys/wait.h>
+#include <sys/utsname.h>
 #include <unistd.h>
 
 #ifndef O_CLOEXEC
@@ -51,6 +52,7 @@
 #define DEFAULT_UPLOAD_DIR "/userdisk/Favorite/HyperFile"
 #define DEFAULT_PORT      8080
 #define CONTROL_TIMEOUT_MS 120
+#define HYPERFILE_APPID   "8026111800000002"
 
 typedef JSModuleDef *(*LoadCModuleFunction)(JSContext *, const char *);
 extern void registerCModuleLoader(const char *, LoadCModuleFunction);
@@ -151,26 +153,45 @@ static int write_state(const char *state)
 static int find_package_binary(const char *prefix, char *out, size_t capacity)
 {
     const char *root = "/userdisk/miniapp/data/mini_app/pkg";
-    DIR *apps = opendir(root);
-    struct dirent *app;
+    const char *slots[] = { "a", "b" };
+    const char *abis[3];
+    struct utsname uts;
+    size_t slot_i, abi_i;
     int useful_error = 0;
+    int aarch64 = 0;
 
-    if (!apps) return -1;
-    while ((app = readdir(apps)) != NULL) {
-        const char *slots[] = { "a", "b" };
-        size_t i;
-        if (app->d_name[0] == '.') continue;
+    if (uname(&uts) == 0)
+        aarch64 = strcmp(uts.machine, "aarch64") == 0 ||
+                   strcmp(uts.machine, "arm64") == 0;
+    if (aarch64) {
+        abis[0] = "arm64-orange";
+        abis[1] = "arm64";
+        abis[2] = "";
+    } else {
+        abis[0] = "";
+        abis[1] = "arm64-orange";
+        abis[2] = "arm64";
+    }
 
-        for (i = 0; i < 2; ++i) {
+    for (slot_i = 0; slot_i < 2; ++slot_i) {
+        for (abi_i = 0; abi_i < 3; ++abi_i) {
             char dirpath[PATH_MAX];
             DIR *libs;
             struct dirent *entry;
-            int n = snprintf(dirpath, sizeof(dirpath), "%s/%s/%s/libs",
-                             root, app->d_name, slots[i]);
+            int n;
+
+            if (abis[abi_i][0] == '\0') {
+                n = snprintf(dirpath, sizeof(dirpath), "%s/%s/%s/libs",
+                             root, HYPERFILE_APPID, slots[slot_i]);
+            } else {
+                n = snprintf(dirpath, sizeof(dirpath), "%s/%s/%s/libs/%s",
+                             root, HYPERFILE_APPID, slots[slot_i], abis[abi_i]);
+            }
             if (n < 0 || (size_t)n >= sizeof(dirpath)) {
                 if (!useful_error) useful_error = ENAMETOOLONG;
                 continue;
             }
+
             libs = opendir(dirpath);
             if (!libs) {
                 if (errno != ENOENT && errno != ENOTDIR && !useful_error)
@@ -194,26 +215,21 @@ static int find_package_binary(const char *prefix, char *out, size_t capacity)
                     if (!useful_error) useful_error = errno;
                     continue;
                 }
-                if (!S_ISREG(st.st_mode)) continue;
-                if (access(candidate, R_OK) != 0) {
-                    if (!useful_error) useful_error = errno;
+                if (!S_ISREG(st.st_mode) || access(candidate, R_OK) != 0)
                     continue;
-                }
                 if ((size_t)n + 1 > capacity) {
                     closedir(libs);
-                    closedir(apps);
                     errno = ENAMETOOLONG;
                     return -1;
                 }
                 memcpy(out, candidate, (size_t)n + 1);
                 closedir(libs);
-                closedir(apps);
                 return 0;
             }
             closedir(libs);
         }
     }
-    closedir(apps);
+
     errno = useful_error ? useful_error : ENOENT;
     return -1;
 }

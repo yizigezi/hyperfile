@@ -161,6 +161,13 @@
       <text class="toast-text">{{ toast }}</text>
     </div>
 
+    <div class="dialog-mask pagination-loading-mask" v-if="paginationLoading">
+      <div class="dialog-card pagination-loading-card">
+        <text class="dialog-title">正在生成分页缓存</text>
+        <text class="dialog-description">正在识别章节并保存分页，请稍候…</text>
+      </div>
+    </div>
+
     <div class="dialog-mask" v-if="showFileActions">
       <div class="dialog-card file-actions-card">
         <text class="dialog-title file-actions-title">{{ selectedEntry ? selectedEntry.name : '' }}</text>
@@ -243,15 +250,25 @@
 
     <div class="dialog-mask" v-if="showInstallConfirm">
       <div class="dialog-card">
-        <text class="dialog-title">安装应用</text>
-        <text class="dialog-description">确认安装以下 AMR 应用包？</text>
+        <text class="dialog-title">{{ isPendingSelfUpdate ? '更新 HyperFile' : '安装应用' }}</text>
+        <text v-if="isPendingSelfUpdate" class="dialog-description">
+          已识别为当前 HyperFile。确认后将由独立更新器替换应用，完成后自动重新启动。
+        </text>
+        <text v-if="installInfoLoading" class="dialog-description">正在读取 AMR 应用信息…</text>
+        <text v-else-if="pendingInstallInfo" class="dialog-description">应用名称：{{ pendingInstallInfo.appName || '未提供' }}</text>
+        <text v-if="pendingInstallInfo" class="dialog-description">App ID：{{ pendingInstallInfo.appid || '未提供' }}</text>
+        <text v-if="pendingInstallInfo" class="dialog-description">版本：{{ pendingInstallInfo.version || '未提供' }}</text>
+        <text v-if="pendingInstallInfo && pendingInstallInfo.description" class="dialog-description">简介：{{ pendingInstallInfo.description }}</text>
+        <text v-if="!installInfoLoading && !pendingInstallInfo" class="dialog-description">
+          {{ pendingInstallInfoError || '未读取到应用信息' }}
+        </text>
         <text class="dialog-path">{{ pendingInstallPath }}</text>
         <div class="dialog-actions">
           <div class="dialog-button" @click="showInstallConfirm = false">
             <text class="dialog-button-label">取消</text>
           </div>
           <div class="dialog-button dialog-button-primary" @click="InstallLocalAmr">
-            <text class="dialog-button-label dialog-button-primary-label">安装</text>
+            <text class="dialog-button-label dialog-button-primary-label">{{ installInfoLoading ? '读取中…' : (isPendingSelfUpdate ? '更新' : '安装') }}</text>
           </div>
         </div>
       </div>
@@ -329,6 +346,7 @@ import FlQrcode from 'falcon-ui/src/packages/qr-code/index.vue'
 import { fs, execShell } from '../../utils/FileSystem/FileSystem.js'
 import { setReaderTarget, getReaderSettings, loadReaderSettings } from '../../utils/ReaderSession.js'
 import { addBook } from '../../utils/Bookshelf.js'
+const HYPERFILE_APP_ID = '8026111800000002'
 const UPLOAD_DIR = '/userdisk/Favorite/HyperFile'
 const DATA_DIR = '/userdisk/HyperFile_Data'
 const LAST_PATH_FILE = DATA_DIR + '/last-directory.json'
@@ -413,6 +431,7 @@ export default {
       received: 0,
       files: [],
       toast: '',
+      paginationLoading: false,
       showSetupConfirm: false,
       showDiagnostics: false,
       diagnosticLines: [],
@@ -426,6 +445,9 @@ export default {
       showDelete: false,
       showInstallConfirm: false,
       pendingInstallPath: '',
+      pendingInstallInfo: null,
+      pendingInstallInfoError: '',
+      installInfoLoading: false,
       showScriptConfirm: false,
       pendingScriptPath: '',
       showScriptResult: false,
@@ -441,6 +463,12 @@ export default {
     }
     this.refreshLocal()
     this.refreshShare()
+  },
+  computed: {
+    isPendingSelfUpdate() {
+      return !!this.pendingInstallInfo &&
+        this.pendingInstallInfo.appid === HYPERFILE_APP_ID
+    }
   },
   methods: {
     switchPage(next) {
@@ -551,14 +579,17 @@ export default {
     async AddToShelf() {
       const entry = this.selectedEntry
       this.showFileActions = false
-      if (!entry) return
-      this.showToast('正在生成分页缓存…')
+      if (!entry || this.paginationLoading) return
+      this.paginationLoading = true
       try {
+        await new Promise(resolve => this.$page.setTimeout(resolve, 16))
         await loadReaderSettings()
         const book = await addBook(entry.path, entry.name, getReaderSettings())
         this.showToast('已加入书架：共 ' + book.pageCount + ' 页')
       } catch (e) {
         this.showToast('加入书架失败：' + (e && e.message ? e.message : e))
+      } finally {
+        this.paginationLoading = false
       }
     },
     CopyToClipboard() {
@@ -630,18 +661,42 @@ export default {
         this.openReader(entry)
       } else if (type === 'amr') {
         this.pendingInstallPath = entry.path
+        this.pendingInstallInfo = null
+        this.pendingInstallInfoError = ''
+        this.installInfoLoading = true
         this.showInstallConfirm = true
+        this.loadPendingAmrInfo(entry.path)
       } else if (type === 'shell') {
         this.pendingScriptPath = entry.path
         this.showScriptConfirm = true
       }
     },
+    async loadPendingAmrInfo(path) {
+      try {
+        const native = await import('hyperfile_local_ops').then((m) => m.default || m)
+        const info = await native.amrInfo(path)
+        if (this.pendingInstallPath === path) this.pendingInstallInfo = info
+      } catch (e) {
+        if (this.pendingInstallPath === path) {
+          this.pendingInstallInfoError = '读取应用信息失败：' + (e && e.message ? e.message : e)
+        }
+      } finally {
+        if (this.pendingInstallPath === path) this.installInfoLoading = false
+      }
+    },
     async InstallLocalAmr() {
+      if (this.installInfoLoading) return
       const path = this.pendingInstallPath
       this.showInstallConfirm = false
       if (!path) return
       try {
         const native = await import('hyperfile_local_ops').then((m) => m.default || m)
+        if (this.isPendingSelfUpdate) {
+          const task = await native.updateAmr(path)
+          this.showToast('HyperFile 自更新已启动')
+          this.showTaskResult(native, task.taskId, 'HyperFile 自更新')
+          return
+        }
         const task = await native.installAmr(path)
         this.showToast('安装任务已启动')
         this.showTaskResult(native, task.taskId, 'AMR 安装')

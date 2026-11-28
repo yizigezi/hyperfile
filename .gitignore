@@ -1,5 +1,6 @@
 node_modules/
 dist/
+native/dist-arm64/
 .falcon_/
 *.amr
 .DS_Store

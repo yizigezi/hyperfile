@@ -75,6 +75,13 @@
               <image class="material-icon" src="/assets/icons/add.png" />
             </div>
           </div>
+
+          <div class="dialog-mask pagination-loading-mask" v-if="busy">
+            <div class="dialog-card pagination-loading-card">
+              <text class="dialog-title">{{ busyMessage || '正在处理分页' }}</text>
+              <text class="dialog-description">请稍候，完成后会自动继续。</text>
+            </div>
+          </div>
         </div>
         <div class="reader-setting-row" :style="{flexDirection: 'row'}">
           <text class="reader-setting-label">行距</text>
@@ -171,7 +178,8 @@ export default {
       book: null,
       chunkPages: [],
       chunkIndex: -1,
-      busy: false
+      busy: false,
+      busyMessage: ''
     }
   },
   created() {
@@ -271,28 +279,36 @@ export default {
         this.rawText = '文件路径无效'
         return
       }
-      await this.loadHistory()
-      const saved = this.history.find(item => item && item.path === this.filePath) || null
+      this.busy = true
+      this.busyMessage = '正在读取并生成分页…'
       try {
-        const text = await fs.readFile(this.filePath)
-        const decoded = decodeText(text)
-        this.rawText = decoded.length ? decoded : '（空文件）'
-      } catch (e) {
-        this.rawText = '读取失败：' + (e && e.message ? e.message : e)
-        return
-      }
-      const isTxt = /\.txt$/i.test(this.filePath) || /\.txt$/i.test(this.readerTitle)
-      if (isTxt && this.rawText.length <= PAGED_MAX_CHARS) {
-        this.mode = 'paged'
-        this.book = null
-        this.buildPagination(0)
-        if (saved && Number.isFinite(Number(saved.page))) {
-          this.currentPage = Math.max(0, Math.min(Number(saved.page), this.pages.length - 1))
+        await new Promise(resolve => this.$page.setTimeout(resolve, 16))
+        await this.loadHistory()
+        const saved = this.history.find(item => item && item.path === this.filePath) || null
+        try {
+          const text = await fs.readFile(this.filePath)
+          const decoded = decodeText(text)
+          this.rawText = decoded.length ? decoded : '（空文件）'
+        } catch (e) {
+          this.rawText = '读取失败：' + (e && e.message ? e.message : e)
+          return
         }
-      } else {
-        this.mode = 'scroll'
+        const isTxt = /\.txt$/i.test(this.filePath) || /\.txt$/i.test(this.readerTitle)
+        if (isTxt && this.rawText.length <= PAGED_MAX_CHARS) {
+          this.mode = 'paged'
+          this.book = null
+          this.buildPagination(0)
+          if (saved && Number.isFinite(Number(saved.page))) {
+            this.currentPage = Math.max(0, Math.min(Number(saved.page), this.pages.length - 1))
+          }
+        } else {
+          this.mode = 'scroll'
+        }
+        await this.saveHistory()
+      } finally {
+        this.busy = false
+        this.busyMessage = ''
       }
-      await this.saveHistory()
     },
     linesPerPage() {
       return Math.max(1, Math.floor(TEXT_HEIGHT / (this.settings.fontSize * this.settings.lineHeight)))
@@ -310,9 +326,18 @@ export default {
       const maxIndex = Math.max(0, result.pages.length - 1)
       this.currentPage = Math.min(Math.round(ratio * maxIndex), maxIndex)
     },
-    repaginate() {
-      const ratio = this.pages.length > 1 ? this.currentPage / (this.pages.length - 1) : 0
-      this.buildPagination(ratio)
+    async repaginate() {
+      if (this.busy) return
+      this.busy = true
+      this.busyMessage = '正在重新分页…'
+      try {
+        await new Promise(resolve => this.$page.setTimeout(resolve, 16))
+        const ratio = this.pages.length > 1 ? this.currentPage / (this.pages.length - 1) : 0
+        this.buildPagination(ratio)
+      } finally {
+        this.busy = false
+        this.busyMessage = ''
+      }
     },
     previousPage() {
       this.goToPage(this.currentPage - 1)
@@ -353,7 +378,9 @@ export default {
       const book = this.book
       if (!book || this.busy) return
       this.busy = true
+      this.busyMessage = '正在重新分页并更新缓存…'
       try {
+        await new Promise(resolve => this.$page.setTimeout(resolve, 16))
         const ratio = book.pageCount > 1 ? this.currentPage / (book.pageCount - 1) : 0
         const entry = await addBook(book.path, book.name, this.settings)
         entry.progress = Math.round(ratio * Math.max(0, entry.pageCount - 1))
@@ -361,8 +388,10 @@ export default {
         await this.openBook(entry)
       } catch (e) {
         this.readerTitle = '重新分页失败：' + (e && e.message ? e.message : e)
+      } finally {
+        this.busy = false
+        this.busyMessage = ''
       }
-      this.busy = false
     },
     async loadHistory() {
       try {
