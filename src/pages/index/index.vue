@@ -9,11 +9,11 @@
         <div :class="page === 'share' ? 'nav-item nav-item-active' : 'nav-item'" @click="switchPage('share')">
           <text :class="page === 'share' ? 'nav-label nav-label-active' : 'nav-label'">文件共享</text>
         </div>
-        <div :class="page === 'settings' ? 'nav-item nav-item-active' : 'nav-item'" @click="switchPage('settings')">
-          <text :class="page === 'settings' ? 'nav-label nav-label-active' : 'nav-label'">设置</text>
+        <div :class="(page === 'settings' || page === 'about') ? 'nav-item nav-item-active' : 'nav-item'" @click="switchPage('settings')">
+          <text :class="(page === 'settings' || page === 'about') ? 'nav-label nav-label-active' : 'nav-label'">设置</text>
         </div>
-        <div class="nav-item" @click="OpenApps">
-          <text class="nav-label">应用</text>
+        <div :class="page === 'apps' ? 'nav-item nav-item-active' : 'nav-item'" @click="switchPage('apps')">
+          <text :class="page === 'apps' ? 'nav-label nav-label-active' : 'nav-label'">应用</text>
         </div>
       </div>
       <text class="path-label" v-if="page === 'local'">{{ currentPath }}</text>
@@ -100,7 +100,7 @@
     </div>
 
     <!-- 设置：每组设置独立成卡片，横向滑动 -->
-    <div class="page-body settings-body" v-else>
+    <div class="page-body settings-body" v-else-if="page === 'settings'">
       <scroller class="settings-shelf" :style="{flexDirection: 'row'}" scroll-direction="horizontal" show-scrollbar="false">
         <div class="settings-card settings-card-wide">
           <scroller class="card-scroll" scroll-y="true" show-scrollbar="false">
@@ -145,7 +145,7 @@
             </div>
           </scroller>
         </div>
-        <div class="settings-card settings-card-about" @click="OpenAbout">
+        <div class="settings-card settings-card-about" @click="switchPage('about')">
           <div class="about-entry">
             <image class="about-entry-icon" src="/assets/icons/info.png" />
             <div class="about-entry-text">
@@ -156,6 +156,44 @@
           </div>
         </div>
       </scroller>
+    </div>
+
+    <div class="page-body apps-body" v-else-if="page === 'apps'">
+      <scroller class="apps-shelf" :style="{flexDirection: 'row'}" scroll-direction="horizontal" show-scrollbar="false">
+        <div class="app-card" v-for="app in apps" :key="app.name" @click="openApp(app)">
+          <div class="app-card-icon-box">
+            <image class="app-card-icon" :src="app.icon" />
+          </div>
+          <text class="app-card-name">{{ app.name }}</text>
+        </div>
+      </scroller>
+    </div>
+
+    <div class="page-body about-body" v-else-if="page === 'about'">
+      <div class="about-card">
+        <div class="about-left">
+          <div class="about-wordmark" :style="{flexDirection: 'row'}">
+            <text class="about-word-hyper">Hyper</text>
+            <text class="about-word-file">File</text>
+          </div>
+          <text class="about-version">版本 {{ appVersion }}</text>
+        </div>
+        <div class="about-divider"></div>
+        <div class="about-right">
+          <div class="about-info-row" :style="{flexDirection: 'row'}">
+            <text class="about-info-label">构建</text>
+            <text class="about-info-value">{{ buildBranch }} · {{ buildCommit }} · {{ buildDate }}</text>
+          </div>
+          <div class="about-info-row" :style="{flexDirection: 'row'}">
+            <text class="about-info-label">仓库</text>
+            <text class="about-info-value">{{ repoUrl }}</text>
+          </div>
+          <div class="about-info-row" :style="{flexDirection: 'row'}">
+            <text class="about-info-label">许可</text>
+            <text class="about-info-value">{{ license }}</text>
+          </div>
+        </div>
+      </div>
     </div>
 
     <div class="toast" v-if="toast">
@@ -436,6 +474,15 @@ export default {
       files: [],
       toast: '',
       appVersion: BuildInfo.version || '0.1.0',
+      buildBranch: BuildInfo.branch || 'local',
+      buildCommit: BuildInfo.commit || 'local',
+      buildDate: BuildInfo.builtAt || '—',
+      repoUrl: 'github.com/yizigezi/hyperfile',
+      license: 'GPL-3.0',
+      apps: [
+        { name: 'Wi-Fi 共享', icon: '/assets/icons/wifi.png', action: 'share' },
+        { name: 'Readex 书架', icon: '/assets/icons/menu_book.png', action: 'shelf' }
+      ],
       paginationLoading: false,
       showSetupConfirm: false,
       showDiagnostics: false,
@@ -469,7 +516,6 @@ export default {
   },
   onShow() { if (this && this.initializePage) this.initializePage() },
   onHide() { if (this && this.lastPathRestored) this.saveLastPath() },
-  onNewOptions() { if (this && this.applyPageOptions) this.applyPageOptions() },
   computed: {
     isPendingSelfUpdate() {
       return !!this.pendingInstallInfo &&
@@ -483,20 +529,10 @@ export default {
     onHide() {
       if (this.lastPathRestored) this.saveLastPath()
     },
-    onNewOptions() {
-      this.applyPageOptions()
-    },
-    applyPageOptions() {
-      const options = this.$page && this.$page.options ? this.$page.options : {}
-      if (options.tab === 'local' || options.tab === 'share' || options.tab === 'settings') {
-        this.switchPage(options.tab)
-      }
-    },
     initializePage() {
       if (this.initialLoadPromise) return this.initialLoadPromise
       console.log('[HyperFile][index] initializePage: begin')
       const task = withTimeout((async () => {
-        this.applyPageOptions()
         if (!this.lastPathRestored) {
           await this.restoreLastPath()
           this.lastPathRestored = true
@@ -617,11 +653,12 @@ export default {
       setReaderTarget(entry.path, entry.name, null)
       $falcon.navTo('reader', { path: entry.path, name: entry.name })
     },
-    OpenApps() {
-      $falcon.navTo('apps')
+    OpenShelf() {
+      $falcon.navTo('shelf')
     },
-    OpenAbout() {
-      $falcon.navTo('about')
+    openApp(app) {
+      if (app.action === 'share') this.switchPage('share')
+      else if (app.action === 'shelf') this.OpenShelf()
     },
     shellQuote(value) {
       return "'" + String(value).replace(/'/g, "'\\''") + "'"
