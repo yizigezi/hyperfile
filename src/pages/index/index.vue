@@ -9,8 +9,8 @@
         <div :class="page === 'share' ? 'nav-item nav-item-active' : 'nav-item'" @click="switchPage('share')">
           <text :class="page === 'share' ? 'nav-label nav-label-active' : 'nav-label'">文件共享</text>
         </div>
-        <div :class="(page === 'settings' || page === 'about') ? 'nav-item nav-item-active' : 'nav-item'" @click="switchPage('settings')">
-          <text :class="(page === 'settings' || page === 'about') ? 'nav-label nav-label-active' : 'nav-label'">设置</text>
+        <div :class="page === 'settings' ? 'nav-item nav-item-active' : 'nav-item'" @click="switchPage('settings')">
+          <text :class="page === 'settings' ? 'nav-label nav-label-active' : 'nav-label'">设置</text>
         </div>
         <div :class="page === 'apps' ? 'nav-item nav-item-active' : 'nav-item'" @click="switchPage('apps')">
           <text :class="page === 'apps' ? 'nav-label nav-label-active' : 'nav-label'">应用</text>
@@ -145,7 +145,7 @@
             </div>
           </scroller>
         </div>
-        <div class="settings-card settings-card-about" @click="switchPage('about')">
+        <div class="settings-card settings-card-about" @click="OpenAbout">
           <div class="about-entry">
             <image class="about-entry-icon" src="/assets/icons/info.png" />
             <div class="about-entry-text">
@@ -167,33 +167,6 @@
           <text class="app-card-name">{{ app.name }}</text>
         </div>
       </scroller>
-    </div>
-
-    <div class="page-body about-body" v-else-if="page === 'about'">
-      <div class="about-card">
-        <div class="about-left">
-          <div class="about-wordmark" :style="{flexDirection: 'row'}">
-            <text class="about-word-hyper">Hyper</text>
-            <text class="about-word-file">File</text>
-          </div>
-          <text class="about-version">版本 {{ appVersion }}</text>
-        </div>
-        <div class="about-divider"></div>
-        <div class="about-right">
-          <div class="about-info-row" :style="{flexDirection: 'row'}">
-            <text class="about-info-label">构建</text>
-            <text class="about-info-value">{{ buildBranch }} · {{ buildCommit }} · {{ buildDate }}</text>
-          </div>
-          <div class="about-info-row" :style="{flexDirection: 'row'}">
-            <text class="about-info-label">仓库</text>
-            <text class="about-info-value">{{ repoUrl }}</text>
-          </div>
-          <div class="about-info-row" :style="{flexDirection: 'row'}">
-            <text class="about-info-label">许可</text>
-            <text class="about-info-value">{{ license }}</text>
-          </div>
-        </div>
-      </div>
     </div>
 
     <div class="toast" v-if="toast">
@@ -474,11 +447,6 @@ export default {
       files: [],
       toast: '',
       appVersion: BuildInfo.version || '0.1.0',
-      buildBranch: BuildInfo.branch || 'local',
-      buildCommit: BuildInfo.commit || 'local',
-      buildDate: BuildInfo.builtAt || '—',
-      repoUrl: 'github.com/yizigezi/hyperfile',
-      license: 'GPL-3.0',
       apps: [
         { name: 'Wi-Fi 共享', icon: '/assets/icons/wifi.png', action: 'share' },
         { name: 'Readex 书架', icon: '/assets/icons/menu_book.png', action: 'shelf' }
@@ -659,6 +627,9 @@ export default {
     openApp(app) {
       if (app.action === 'share') this.switchPage('share')
       else if (app.action === 'shelf') this.OpenShelf()
+    },
+    OpenAbout() {
+      $falcon.navTo('about')
     },
     shellQuote(value) {
       return "'" + String(value).replace(/'/g, "'\\''") + "'"
