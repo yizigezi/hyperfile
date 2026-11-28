@@ -1207,3 +1207,172 @@
   font-size: 12px;
   font-weight: bold;
 }
+
+/* ---------- 关于页（HyperOS 风格） ---------- */
+
+.about-body {
+  padding: 12px 16px;
+  flex-direction: column;
+}
+
+.about-card {
+  width: 100%;
+  height: 172px;
+  border-radius: 26px;
+  background-color: @surface-container;
+  padding: 22px 30px;
+  flex-direction: row;
+  align-items: center;
+}
+
+.about-left {
+  width: 300px;
+  flex-shrink: 0;
+  flex-direction: column;
+}
+
+.about-wordmark {
+  align-items: baseline;
+}
+
+.about-word-hyper {
+  font-family: 'MiSans', sans-serif;
+  font-size: 42px;
+  font-weight: bold;
+  color: @on-surface;
+  letter-spacing: 1px;
+}
+
+.about-word-file {
+  font-family: 'MiSans', sans-serif;
+  font-size: 42px;
+  font-weight: bold;
+  color: #2655ff;
+  letter-spacing: 1px;
+}
+
+.about-version {
+  margin-top: 10px;
+  font-family: 'MiSans', sans-serif;
+  font-size: 16px;
+  color: @on-surface-variant;
+}
+
+.about-divider {
+  width: 1px;
+  height: 120px;
+  margin: 0 30px;
+  background-color: @outline-variant;
+}
+
+.about-right {
+  flex: 1;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.about-info-row {
+  margin-bottom: 10px;
+  align-items: baseline;
+}
+
+.about-info-row:last-child {
+  margin-bottom: 0;
+}
+
+.about-info-label {
+  width: 56px;
+  font-family: 'MiSans', sans-serif;
+  font-size: 15px;
+  color: @on-surface-variant;
+}
+
+.about-info-value {
+  font-family: 'MiSans', sans-serif;
+  font-size: 15px;
+  color: @on-surface;
+}
+
+/* ---------- 应用页 ---------- */
+
+.apps-body {
+  padding: 12px 16px;
+  flex-direction: column;
+}
+
+.apps-shelf {
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+  flex-direction: row;
+  padding-bottom: 4px;
+}
+
+.app-card {
+  width: 168px;
+  height: 168px;
+  flex-shrink: 0;
+  margin-right: 12px;
+  padding: 16px;
+  border-radius: 24px;
+  background-color: @surface-container;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.app-card-icon-box {
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  background-color: @surface-container-highest;
+  align-items: center;
+  justify-content: center;
+}
+
+.app-card-icon {
+  width: 34px;
+  height: 34px;
+}
+
+.app-card-name {
+  margin-top: 14px;
+  font-family: 'MiSans', sans-serif;
+  font-size: 17px;
+  font-weight: bold;
+  color: @on-surface;
+}
+
+/* ---------- 设置页 · 关于入口卡片 ---------- */
+
+.about-entry {
+  height: 100%;
+  flex-direction: row;
+  align-items: center;
+  padding: 0 6px;
+}
+
+.about-entry-icon {
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+}
+
+.about-entry-text {
+  flex: 1;
+  margin-left: 14px;
+  flex-direction: column;
+}
+
+.about-entry-title {
+  font-family: 'MiSans', sans-serif;
+  font-size: 17px;
+  font-weight: bold;
+  color: @on-surface;
+}
+
+.about-entry-version {
+  margin-top: 6px;
+  font-family: 'MiSans', sans-serif;
+  font-size: 14px;
+  color: @on-surface-variant;
+}

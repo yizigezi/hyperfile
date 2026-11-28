@@ -6,14 +6,11 @@
         <div :class="page === 'local' ? 'nav-item nav-item-active' : 'nav-item'" @click="switchPage('local')">
           <text :class="page === 'local' ? 'nav-label nav-label-active' : 'nav-label'">本地文件</text>
         </div>
-        <div :class="page === 'share' ? 'nav-item nav-item-active' : 'nav-item'" @click="switchPage('share')">
-          <text :class="page === 'share' ? 'nav-label nav-label-active' : 'nav-label'">文件共享</text>
+        <div :class="(page === 'settings' || page === 'about') ? 'nav-item nav-item-active' : 'nav-item'" @click="switchPage('settings')">
+          <text :class="(page === 'settings' || page === 'about') ? 'nav-label nav-label-active' : 'nav-label'">设置</text>
         </div>
-        <div :class="page === 'settings' ? 'nav-item nav-item-active' : 'nav-item'" @click="switchPage('settings')">
-          <text :class="page === 'settings' ? 'nav-label nav-label-active' : 'nav-label'">设置</text>
-        </div>
-        <div class="nav-item" @click="OpenShelf">
-          <text class="nav-label">书架</text>
+        <div :class="page === 'apps' ? 'nav-item nav-item-active' : 'nav-item'" @click="switchPage('apps')">
+          <text :class="page === 'apps' ? 'nav-label nav-label-active' : 'nav-label'">应用</text>
         </div>
       </div>
       <text class="path-label" v-if="page === 'local'">{{ currentPath }}</text>
@@ -100,7 +97,7 @@
     </div>
 
     <!-- 设置：每组设置独立成卡片，横向滑动 -->
-    <div class="page-body settings-body" v-else>
+    <div class="page-body settings-body" v-else-if="page === 'settings'">
       <scroller class="settings-shelf" :style="{flexDirection: 'row'}" scroll-direction="horizontal" show-scrollbar="false">
         <div class="settings-card settings-card-wide">
           <scroller class="card-scroll" scroll-y="true" show-scrollbar="false">
@@ -146,15 +143,54 @@
           </scroller>
         </div>
         <div class="settings-card settings-card-about">
-          <scroller class="card-scroll" scroll-y="true" show-scrollbar="false">
-            <text class="section-heading">关于 HyperFile</text>
-            <text class="settings-about-title">HyperFile</text>
-            <text class="setting-description">词典笔本地文件与网络共享管理</text>
-            <text class="settings-version">版本 0.1.0</text>
-            <text class="settings-note">当前支持目录浏览、文本阅读、AMR 安装与 Wi-Fi 文件共享。</text>
-          </scroller>
+          <div class="about-entry" @click="switchPage('about')">
+            <image class="about-entry-icon" src="/assets/icons/info.png" />
+            <div class="about-entry-text">
+              <text class="about-entry-title">关于 HyperFile</text>
+              <text class="about-entry-version">版本 {{ appVersion }}</text>
+            </div>
+            <text class="setting-chevron">查看</text>
+          </div>
         </div>
       </scroller>
+    </div>
+
+    <div class="page-body apps-body" v-else-if="page === 'apps'">
+      <scroller class="apps-shelf" :style="{flexDirection: 'row'}" scroll-direction="horizontal" show-scrollbar="false">
+        <div class="app-card" v-for="app in apps" :key="app.name" @click="openApp(app)">
+          <div class="app-card-icon-box">
+            <image class="app-card-icon" :src="app.icon" />
+          </div>
+          <text class="app-card-name">{{ app.name }}</text>
+        </div>
+      </scroller>
+    </div>
+
+    <div class="page-body about-body" v-else-if="page === 'about'">
+      <div class="about-card">
+        <div class="about-left">
+          <div class="about-wordmark" :style="{flexDirection: 'row'}">
+            <text class="about-word-hyper">Hyper</text>
+            <text class="about-word-file">File</text>
+          </div>
+          <text class="about-version">版本 {{ appVersion }}</text>
+        </div>
+        <div class="about-divider"></div>
+        <div class="about-right">
+          <div class="about-info-row" :style="{flexDirection: 'row'}">
+            <text class="about-info-label">构建</text>
+            <text class="about-info-value">{{ buildBranch }} · {{ buildCommit }} · {{ buildDate }}</text>
+          </div>
+          <div class="about-info-row" :style="{flexDirection: 'row'}">
+            <text class="about-info-label">仓库</text>
+            <text class="about-info-value">{{ repoUrl }}</text>
+          </div>
+          <div class="about-info-row" :style="{flexDirection: 'row'}">
+            <text class="about-info-label">许可</text>
+            <text class="about-info-value">{{ license }}</text>
+          </div>
+        </div>
+      </div>
     </div>
 
     <div class="toast" v-if="toast">
@@ -344,8 +380,10 @@
 <script>
 import FlQrcode from 'falcon-ui/src/packages/qr-code/index.vue'
 import { fs, execShell } from '../../utils/FileSystem/FileSystem.js'
+import { withTimeout } from '../../utils/async.js'
 import { setReaderTarget, getReaderSettings, loadReaderSettings } from '../../utils/ReaderSession.js'
 import { addBook } from '../../utils/Bookshelf.js'
+import BuildInfo from '../../utils/BuildInfo.js'
 const HYPERFILE_APP_ID = '8026111800000002'
 const UPLOAD_DIR = '/userdisk/Favorite/HyperFile'
 const DATA_DIR = '/userdisk/HyperFile_Data'
@@ -420,6 +458,7 @@ export default {
       page: 'local',
       currentPath: '/',
       lastPathRestored: false,
+      initialLoadPromise: null,
       entries: [],
       localLoading: false,
       localError: '',
@@ -431,6 +470,16 @@ export default {
       received: 0,
       files: [],
       toast: '',
+      appVersion: BuildInfo.version || '0.1.0',
+      buildBranch: BuildInfo.branch || 'local',
+      buildCommit: BuildInfo.commit || 'local',
+      buildDate: BuildInfo.builtAt || '—',
+      repoUrl: 'github.com/yizigezi/hyperfile',
+      license: 'GPL-3.0',
+      apps: [
+        { name: 'Wi-Fi 共享', icon: '/assets/icons/wifi.png', action: 'share' },
+        { name: 'Readex 书架', icon: '/assets/icons/menu_book.png', action: 'shelf' }
+      ],
       paginationLoading: false,
       showSetupConfirm: false,
       showDiagnostics: false,
@@ -456,14 +505,14 @@ export default {
       scriptRunning: false
     }
   },
-  async onShow() {
-    if (!this.lastPathRestored) {
-      await this.restoreLastPath()
-      this.lastPathRestored = true
-    }
-    this.refreshLocal()
-    this.refreshShare()
+  // 首次加载由 Vue created 触发（必火）；页面钩子双保险：
+  // methods 同名项供 BasePage._callRootHook 转发，顶层同名项供运行时 $options 直调。
+  created() {
+    console.log('[HyperFile][index] created: start initial load')
+    this.initializePage()
   },
+  onShow() { if (this && this.initializePage) this.initializePage() },
+  onHide() { if (this && this.lastPathRestored) this.saveLastPath() },
   computed: {
     isPendingSelfUpdate() {
       return !!this.pendingInstallInfo &&
@@ -471,6 +520,34 @@ export default {
     }
   },
   methods: {
+    onShow() {
+      this.initializePage()
+    },
+    onHide() {
+      if (this.lastPathRestored) this.saveLastPath()
+    },
+    initializePage() {
+      if (this.initialLoadPromise) return this.initialLoadPromise
+      console.log('[HyperFile][index] initializePage: begin')
+      const task = withTimeout((async () => {
+        if (!this.lastPathRestored) {
+          await this.restoreLastPath()
+          this.lastPathRestored = true
+        }
+        console.log('[HyperFile][index] restored path:', this.currentPath)
+        await Promise.all([this.refreshLocal(), this.refreshShare()])
+        console.log('[HyperFile][index] initializePage: complete')
+      })(), 20000, '页面数据加载')
+      this.initialLoadPromise = task
+      task.then(
+        () => { if (this.initialLoadPromise === task) this.initialLoadPromise = null },
+        (error) => {
+          console.log('[HyperFile] 页面初始加载失败:', error)
+          if (this.initialLoadPromise === task) this.initialLoadPromise = null
+        }
+      )
+      return task
+    },
     switchPage(next) {
       this.page = next
       if (next === 'local') this.refreshLocal()
@@ -506,6 +583,7 @@ export default {
       }
     },
     async refreshLocal() {
+      console.log('[HyperFile][index] refreshLocal: begin', this.currentPath)
       this.localLoading = true
       this.localError = ''
       try {
@@ -535,7 +613,9 @@ export default {
           return a.name.localeCompare(b.name)
         })
         this.entries = result
+        console.log('[HyperFile][index] refreshLocal: complete, entries=', result.length)
       } catch (e) {
+        console.log('[HyperFile][index] refreshLocal: failed', e)
         this.entries = []
         this.localError = e && e.message ? e.message : String(e)
       } finally {
@@ -572,6 +652,10 @@ export default {
     },
     OpenShelf() {
       $falcon.navTo('shelf')
+    },
+    openApp(app) {
+      if (app.action === 'share') this.switchPage('share')
+      else if (app.action === 'shelf') this.OpenShelf()
     },
     shellQuote(value) {
       return "'" + String(value).replace(/'/g, "'\\''") + "'"

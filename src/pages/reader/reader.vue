@@ -185,12 +185,9 @@ export default {
   created() {
     this.loadTarget()
   },
-  onShow() {
-    this.loadTarget()
-  },
-  onHide() {
-    this.saveProgress()
-  },
+  // 页面钩子双保险：methods 同名项供 BasePage._callRootHook 转发，顶层同名项供运行时 $options 直调。
+  onShow() { if (this && this.loadTarget) this.loadTarget() },
+  onHide() { if (this && this.saveProgress) this.saveProgress() },
   computed: {
     textStyle() {
       return {
@@ -220,7 +217,22 @@ export default {
     }
   },
   methods: {
+    onShow() {
+      this.loadTarget()
+    },
+    onHide() {
+      this.saveProgress()
+    },
     async loadTarget() {
+      if (this._loadingTarget) return
+      this._loadingTarget = true
+      try {
+        await this.doLoadTarget()
+      } finally {
+        this._loadingTarget = false
+      }
+    },
+    async doLoadTarget() {
       await loadReaderSettings()
       this.settings = getReaderSettings()
       // 双通道取参：ReaderSession 共享存储优先，Falcon 页面参数兜底

@@ -65,6 +65,7 @@
 <script>
 import { listBooks, removeBook } from '../../utils/Bookshelf.js'
 import { setReaderTarget, getReaderSettings, loadReaderSettings } from '../../utils/ReaderSession.js'
+import { withTimeout } from '../../utils/async.js'
 
 export default {
   name: 'shelf',
@@ -72,31 +73,51 @@ export default {
     return {
       books: [],
       loading: false,
+      refreshPromise: null,
       removeTarget: null,
       toast: ''
     }
   },
-  onShow() {
+  // 首次加载由 Vue created 触发（必火）；页面钩子双保险：
+  // methods 同名项供 BasePage._callRootHook 转发，顶层同名项供运行时 $options 直调。
+  created() {
+    console.log('[HyperFile][shelf] created: start refresh')
     this.refresh()
   },
+  onShow() { if (this && this.refresh) this.refresh() },
   methods: {
+    onShow() {
+      this.refresh()
+    },
     openDefaultSettings() {
       $falcon.navTo('shelf-settings')
     },
     openBookSettings(book) {
       $falcon.navTo('shelf-settings', { bookId: book.id })
     },
-    async refresh() {
-      await loadReaderSettings()
+    refresh() {
+      if (this.refreshPromise) return this.refreshPromise
+      console.log('[HyperFile][shelf] refresh: begin')
       this.loading = true
-      try {
+      const task = withTimeout((async () => {
+        await loadReaderSettings()
         this.books = await listBooks()
-      } catch (e) {
-        this.books = []
-        this.showToast('书架读取失败：' + (e && e.message ? e.message : e))
-      } finally {
-        this.loading = false
-      }
+        console.log('[HyperFile][shelf] refresh: complete, books=', this.books.length)
+      })(), 15000, '书架读取')
+      this.refreshPromise = task
+      task.then(
+        () => {
+          this.loading = false
+          if (this.refreshPromise === task) this.refreshPromise = null
+        },
+        (e) => {
+          console.log('[HyperFile][shelf] refresh: failed', e)
+          this.loading = false
+          this.showToast('书架读取失败：' + (e && e.message ? e.message : e))
+          if (this.refreshPromise === task) this.refreshPromise = null
+        }
+      )
+      return task
     },
     percentOf(book) {
       if (!book.pageCount) return 0
