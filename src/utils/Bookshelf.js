@@ -10,7 +10,7 @@
  * 打开书籍只需读 shelf.json + 一个 chunk，最大限度降低加载时间。
  */
 import { fs } from './FileSystem/FileSystem.js'
-import { buildPages } from './JsPagination.js'
+import { buildPages, buildPagesNative } from './JsPagination.js'
 
 const SHELF_DIR = '/userdisk/HyperFile_Data/bookshelf'
 const SHELF_FILE = SHELF_DIR + '/shelf.json'
@@ -148,7 +148,8 @@ export async function addBook(filePath, name, settings) {
   if (content.length > ADD_MAX_CHARS) throw new Error('文件过大（超过 ' + ADD_MAX_CHARS + ' 字符）')
 
   const opts = paginationOptions(settings)
-  const result = buildPages(content, opts)
+  const nativeTest = await buildPagesNative(content, opts)
+  const result = nativeTest ? nativeTest.result : buildPages(content, opts)
 
   await fs.mkdir(SHELF_DIR)
   const id = sanitizeId(name)
@@ -170,6 +171,8 @@ export async function addBook(filePath, name, settings) {
     pageCount: result.pages.length,
     chunkCount: Math.ceil(result.pages.length / CHUNK_PAGES),
     chapters: result.chapters,
+    paginationEngine: nativeTest ? nativeTest.engine : 'js',
+    paginationElapsedMs: nativeTest ? nativeTest.elapsedMs : null,
     progress: 0,
     addedAt: Date.now()
   }
