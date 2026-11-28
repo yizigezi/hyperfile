@@ -6,9 +6,6 @@
         <div :class="page === 'local' ? 'nav-item nav-item-active' : 'nav-item'" @click="switchPage('local')">
           <text :class="page === 'local' ? 'nav-label nav-label-active' : 'nav-label'">本地文件</text>
         </div>
-        <div :class="page === 'share' ? 'nav-item nav-item-active' : 'nav-item'" @click="switchPage('share')">
-          <text :class="page === 'share' ? 'nav-label nav-label-active' : 'nav-label'">文件共享</text>
-        </div>
         <div :class="page === 'settings' ? 'nav-item nav-item-active' : 'nav-item'" @click="switchPage('settings')">
           <text :class="page === 'settings' ? 'nav-label nav-label-active' : 'nav-label'">设置</text>
         </div>
