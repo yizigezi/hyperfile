@@ -1,8 +1,8 @@
 {
-  "name": "hyperfile",
+  "name": "HyperFile",
   "appid": "8026111800000002",
   "version": "0.1.0",
-  "description": "HyperFile for 有道词典笔 X5：同 Wi-Fi 网页传文件到 /userdisk/Favorite/HyperFile",
+  "description": "HyperFile",
   "icon": "app_icon.png",
   "license": "GPL-3.0",
   "quickjs": {
@@ -23,6 +23,9 @@
     "build:bin-nopack": "aiot-cli -q",
     "build:web": "aiot-cli build-web",
     "build:simulator": "aiot-cli simulator ./",
+    "build:native:armv7": "bash tools/build-httpd.sh armv7",
+    "build:native:arm64": "bash tools/build-httpd.sh arm64",
+    "build:native": "npm run build:native:armv7 && npm run build:native:arm64",
     "check": "aiot-cli check",
     "check:beta": "aiot-cli check -b"
   },

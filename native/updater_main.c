@@ -3,6 +3,8 @@
  * Runs independently from the app and HTTP daemon.
  */
 #define _GNU_SOURCE
+#include "amr_info.h"
+
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -18,7 +20,7 @@
 #include <time.h>
 #include <unistd.h>
 
-#define APP_ID "8026111800000002"
+#define APP_ID HF_HYPERFILE_APP_ID
 #define SERVICE_DIR "/userdisk/HyperFile"
 #define UPDATER_PATH SERVICE_DIR "/hyperfile-updater"
 #define PACKAGE_PATH "/tmp/hyperfile-update.amr"

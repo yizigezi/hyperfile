@@ -5,6 +5,8 @@
  */
 #define _GNU_SOURCE
 #include "quickjs.h"
+#include "amr_info.h"
+#include "amr_update.h"
 #include <errno.h>
 #include <fcntl.h>
 #include <limits.h>
@@ -94,7 +96,15 @@ static void task_worker(const char *path, int install, const char *log_path,
         dup2(logfd, STDERR_FILENO);
         if (logfd > STDERR_FILENO) close(logfd);
     }
-    if (!install) {
+    if (install == 2) {
+        if (hf_amr_start_update_from_path(path) != 0) {
+            dprintf(STDERR_FILENO, "HyperFile 自更新启动失败：%s\n", strerror(errno));
+            goto done;
+        }
+        dprintf(STDOUT_FILENO, "HyperFile 自更新流程已启动\n");
+        code = 0;
+        goto done;
+    } else if (!install) {
         if (lstat(path, &st) != 0) {
             dprintf(STDERR_FILENO, "lstat failed: %s\n", strerror(errno));
             goto done;
@@ -286,14 +296,83 @@ static JSValue js_install_amr(JSContext *ctx, JSValueConst this_val,
                               int argc, JSValueConst *argv)
 {
     const char *path;
+    char *manifest = NULL;
+    size_t length = 0;
+    int matches;
     JSValue result;
     (void)this_val;
     if (argc < 1) return rejected_promise(ctx, "installAmr", EINVAL);
     path = JS_ToCString(ctx, argv[0]);
     if (!path) return JS_EXCEPTION;
+    if (hf_amr_read_manifest(path, &manifest, &length) == 0) {
+        matches = hf_amr_manifest_appid_matches(
+            manifest, length, HF_HYPERFILE_APP_ID);
+        free(manifest);
+        if (matches) {
+            JS_FreeCString(ctx, path);
+            return rejected_promise(ctx, "installAmr", EPERM);
+        }
+    }
     result = start_task(ctx, path, 1);
     JS_FreeCString(ctx, path);
     return result;
+}
+
+static JSValue js_update_amr(JSContext *ctx, JSValueConst this_val,
+                             int argc, JSValueConst *argv)
+{
+    const char *path;
+    char *manifest = NULL;
+    size_t length = 0;
+    int saved_error;
+    JSValue result;
+    (void)this_val;
+    if (argc < 1) return rejected_promise(ctx, "updateAmr", EINVAL);
+    path = JS_ToCString(ctx, argv[0]);
+    if (!path) return JS_EXCEPTION;
+    if (hf_amr_read_manifest(path, &manifest, &length) != 0) {
+        saved_error = errno;
+        JS_FreeCString(ctx, path);
+        return rejected_promise(ctx, "updateAmr", saved_error);
+    }
+    int matches = hf_amr_manifest_appid_matches(
+        manifest, length, HF_HYPERFILE_APP_ID);
+    free(manifest);
+    if (!matches) {
+        JS_FreeCString(ctx, path);
+        return rejected_promise(ctx, "updateAmr", EPERM);
+    }
+    result = start_task(ctx, path, 2);
+    JS_FreeCString(ctx, path);
+    return result;
+}
+
+static JSValue js_amr_info(JSContext *ctx, JSValueConst this_val,
+                           int argc, JSValueConst *argv)
+{
+    const char *path;
+    char *manifest;
+    size_t length;
+    int saved_error;
+    JSValue info;
+    (void)this_val;
+    if (argc < 1) return rejected_promise(ctx, "amrInfo", EINVAL);
+    path = JS_ToCString(ctx, argv[0]);
+    if (!path) return JS_EXCEPTION;
+    if (hf_amr_read_manifest(path, &manifest, &length) != 0) {
+        saved_error = errno;
+        JS_FreeCString(ctx, path);
+        return rejected_promise(ctx, "amrInfo", saved_error);
+    }
+    JS_FreeCString(ctx, path);
+    info = JS_ParseJSON(ctx, manifest, length, "<amr-manifest>");
+    free(manifest);
+    if (JS_IsException(info)) return info;
+    if (!JS_IsObject(info)) {
+        JS_FreeValue(ctx, info);
+        return rejected_promise(ctx, "amrInfo", EINVAL);
+    }
+    return resolved(ctx, info);
 }
 
 static JSValue js_run_script(JSContext *ctx, JSValueConst this_val,
@@ -652,6 +731,8 @@ static int module_init(JSContext *ctx, JSModuleDef *m)
 {
     JSValue api = JS_NewObject(ctx);
     JS_SetPropertyStr(ctx, api, "installAmr", JS_NewCFunction(ctx, js_install_amr, "installAmr", 1));
+    JS_SetPropertyStr(ctx, api, "updateAmr", JS_NewCFunction(ctx, js_update_amr, "updateAmr", 1));
+    JS_SetPropertyStr(ctx, api, "amrInfo", JS_NewCFunction(ctx, js_amr_info, "amrInfo", 1));
     JS_SetPropertyStr(ctx, api, "runScript", JS_NewCFunction(ctx, js_run_script, "runScript", 1));
     JS_SetPropertyStr(ctx, api, "taskStatus", JS_NewCFunction(ctx, js_task_status, "taskStatus", 1));
     JS_SetPropertyStr(ctx, api, "buildPages", JS_NewCFunction(ctx, js_build_pages, "buildPages", 3));

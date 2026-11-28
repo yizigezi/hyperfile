@@ -177,14 +177,16 @@ export default {
       if (!book) return
       this.repaginating = true
       try {
+        await new Promise(resolve => this.$page.setTimeout(resolve, 16))
         const updated = await updateBookSettings(book.id, this.draftSettings)
         this.books = await listBooks()
         this.settingsTarget = updated
         this.showToast('分页已更新')
       } catch (e) {
         this.showToast('重新分页失败：' + (e && e.message ? e.message : e))
+      } finally {
+        this.repaginating = false
       }
-      this.repaginating = false
     },
     async renameSelected() {
       const book = this.settingsTarget

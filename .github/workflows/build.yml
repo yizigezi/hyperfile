@@ -41,6 +41,9 @@ jobs:
       - name: Build standalone HTTP daemon and controller (X5 / ARMv7)
         run: bash tools/build-httpd.sh
 
+      - name: Build standalone HTTP daemon and controller (X7P / ARM64)
+        run: bash tools/build-httpd.sh arm64
+
       - name: Check project
         run: npm run check
 

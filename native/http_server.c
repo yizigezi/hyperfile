@@ -4,6 +4,7 @@
  * 功能面（刻意最小）：
  *   GET  /            -> 内置上传网页（web_upload_html）
  *   GET  /status      -> JSON 状态
+ *   GET  /api/package-info?path= -> 读取 AMR manifest 元数据
  *   PUT|POST /upload  -> 流式接收 body 写入 upload 目录；文件名取
  *                        query ?name= 或 X-File-Name 头（URL 解码 + basename 消毒）
  *   其他              -> 404
@@ -18,6 +19,8 @@
 
 #include "http_server.h"
 #include "file_manager.h"
+#include "amr_info.h"
+#include "amr_update.h"
 
 #include <arpa/inet.h>
 #include <errno.h>
@@ -31,6 +34,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <sys/time.h>
 #include <sys/types.h>
 #include <time.h>
@@ -68,6 +72,13 @@ static const char WEB_UPLOAD_HTML[] =
 "var current='',clipboard=null;var list=document.getElementById('list'),statusEl=document.getElementById('status');"
 "function enc(v){return encodeURIComponent(v)}function join(a,b){return a?a+'/'+b:b}"
 "function say(s){statusEl.textContent=s}function api(url,method){return fetch(url,{method:method||'GET'}).then(function(r){return r.json().then(function(j){if(!r.ok||j.ok===false)throw Error(j.error||('HTTP '+r.status));return j})})}"
+"function installAmr(rel,name){function start(selfUpdate){var url='/api/install?path='+enc(rel)+(selfUpdate?'&selfUpdate=1':'');"
+"return api(url,'POST').then(function(result){say(result.updating?'HyperFile 自更新已启动，更新完成后会自动重新启动':'安装命令已启动，日志：/userdisk/HyperFile/install.log')})}"
+"api('/api/package-info?path='+enc(rel)).then(function(data){var m=data.manifest||{},selfUpdate=m.appid==='8026111800000002';"
+"var lines=[selfUpdate?'确认启动 HyperFile 自更新？':'确认安装以下 AMR 应用包？','应用名称：'+(m.appName||name||'未提供'),'App ID：'+(m.appid||'未提供'),'版本：'+(m.version||'未提供')];"
+"if(m.description)lines.push('简介：'+m.description);if(selfUpdate)lines.push('将由独立更新器替换 HyperFile 并在完成后重新启动。');"
+"if(confirm(lines.join('\\n')))return start(selfUpdate);say('已取消安装')},function(e){"
+"if(confirm('读取应用信息失败：'+e.message+'\\n仍要继续安装吗？'))return start(false);say('已取消安装')}).catch(function(e){say('启动安装失败：'+e.message)})}"
 "function load(){document.getElementById('crumb').textContent='/'+current;list.innerHTML='';"
 "api('/api/files?path='+enc(current)).then(function(data){var entries=data.entries||[];entries.sort(function(a,b){return (b.directory-a.directory)||a.name.localeCompare(b.name)});"
 "if(!entries.length){list.innerHTML='<div class=empty>此文件夹为空</div>';return}"
@@ -77,7 +88,7 @@ static const char WEB_UPLOAD_HTML[] =
 "var meta=document.createElement('div');meta.className='meta';meta.textContent=e.directory?'文件夹':formatSize(e.size);row.appendChild(meta);"
 "var actions=document.createElement('div');actions.className='actions';"
 "var cp=document.createElement('button');cp.textContent='复制';cp.onclick=function(){clipboard=rel;say('已复制：'+rel)};actions.appendChild(cp);"
-"if(!e.directory && /\\.amr$/i.test(e.name)){var ins=document.createElement('button');ins.className='primary';ins.textContent='安装';ins.onclick=function(){if(!confirm('确认安装 '+e.name+'？'))return;api('/api/install?path='+enc(rel),'POST').then(function(){say('安装命令已启动，日志：/userdisk/HyperFile/install.log')}).catch(function(x){say('启动安装失败：'+x.message)})};actions.appendChild(ins)}"
+"if(!e.directory && /\\.amr$/i.test(e.name)){var ins=document.createElement('button');ins.className='primary';ins.textContent='安装';ins.onclick=function(){installAmr(rel,e.name)};actions.appendChild(ins)}"
 "var del=document.createElement('button');del.className='danger';del.textContent='删除';del.onclick=function(){if(!confirm('确定删除 '+e.name+'？'))return;api('/api/file?path='+enc(rel),'DELETE').then(function(){say('已删除');load()}).catch(function(x){say('删除失败：'+x.message)})};actions.appendChild(del);"
 "row.appendChild(actions);list.appendChild(row)});}).catch(function(e){say('读取失败：'+e.message)})}"
 "function formatSize(n){if(n<1024)return n+' B';if(n<1048576)return (n/1024).toFixed(1)+' KB';return (n/1048576).toFixed(1)+' MB'}"
@@ -110,14 +121,19 @@ static const char ABOUT_HTML[] =
 "<input id=\"token\" type=\"password\" inputmode=\"numeric\" maxlength=\"12\" placeholder=\"设备上显示的更新验证码\"><br>"
 "<button id=\"update\">手动更新</button><div id=\"status\"></div></section>"
 "<script>var btn=document.getElementById('update'),statusEl=document.getElementById('status');"
+"function request(url,method,headers,body){return fetch(url,{method:method,headers:headers,body:body}).then(function(r){return r.json().then(function(j){if(!r.ok||!j.ok)throw Error(j.error||('HTTP '+r.status));return j})})}"
+"function cancelUpdate(token){return request('/api/update/preview','DELETE',{'X-HyperFile-Token':token})}"
+"function showUpdating(){document.body.innerHTML='<main style=\"font:16px sans-serif;text-align:center;padding:40px\"><h2>HyperFile 正在更新</h2><p>更新程序已启动。请勿关闭设备或中断电源，完成后 HyperFile 将自动重新启动。</p><p>如长时间未恢复，请查看 /tmp/hyperfile-update.log。</p></main>'}"
 "btn.onclick=function(){var f=document.getElementById('pkg').files[0],token=document.getElementById('token').value;"
 "if(!f){statusEl.textContent='请先选择 AMR 文件';return}if(!token){statusEl.textContent='请输入设备上显示的更新验证码';return}"
-"if(!confirm('将卸载并重新安装 HyperFile，确认继续？'))return;btn.disabled=true;statusEl.textContent='正在上传更新包…';"
-"var x=new XMLHttpRequest();x.open('PUT','/api/update');x.setRequestHeader('X-File-Name',f.name);"
-"x.setRequestHeader('X-HyperFile-Token',token);x.onload=function(){btn.disabled=false;try{var j=JSON.parse(x.responseText);"
-"if(x.status===200&&j.ok){document.open();document.write('<!DOCTYPE html><html lang=\'zh-CN\'><head><meta charset=\'utf-8\'><meta name=\'viewport\' content=\'width=device-width,initial-scale=1\'><title>HyperFile 正在更新</title><style>*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;background:#171717;color:#eee;font:16px system-ui,sans-serif}.panel{text-align:center;padding:32px;max-width:420px}.spinner{width:36px;height:36px;margin:0 auto 22px;border:3px solid #444;border-top-color:#ff9cbd;border-radius:50%;animation:spin 1s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}h2{font-size:21px;font-weight:600}p{color:#aaa;line-height:1.7;font-size:14px}</style></head><body><main class=\'panel\'><div class=\'spinner\'></div><h2>HyperFile 正在更新</h2><p>更新程序已启动，HTTP 服务即将停止。请勿关闭设备或中断电源，更新完成后 HyperFile 将自动重新启动。</p><p>如果长时间没有恢复，请查看设备上的 /tmp/hyperfile-update.log。</p></main></body></html>');document.close();}"
-"else statusEl.textContent='更新失败：'+(j.error||x.status)}}catch(e){statusEl.textContent='更新请求失败：'+x.status}};"
-"x.onerror=function(){btn.disabled=false;statusEl.textContent='网络错误'};x.send(f)};</script></main></body></html>";
+"btn.disabled=true;statusEl.textContent='正在上传并读取应用信息…';var headers={'X-File-Name':f.name,'X-HyperFile-Token':token};"
+"request('/api/update','PUT',headers,f).then(function(data){var m=data.manifest||{};"
+"var lines=['应用名称：'+(m.appName||'未提供'),'App ID：'+(m.appid||'未提供'),'版本：'+(m.version||'未提供')];if(m.description)lines.push('简介：'+m.description);"
+"if(m.appid!=='8026111800000002')return cancelUpdate(token).then(function(){throw Error('所选 AMR 不是 HyperFile（App ID 不匹配）')});"
+"if(!confirm(lines.join('\\n')+'\\n\\n确认卸载并安装此 HyperFile 版本？'))return cancelUpdate(token).then(function(){return {cancelled:true}});"
+"return request('/api/update/confirm','POST',{'X-HyperFile-Token':token}).then(function(){return {started:true}})}).then(function(result){"
+"if(result&&result.started)showUpdating();else{btn.disabled=false;statusEl.textContent='已取消更新'}}).catch(function(e){btn.disabled=false;statusEl.textContent='更新失败：'+e.message})};"
+"</script></main></body></html>";
 
 /* ---------------- 全局状态（单 server 线程 + 主线程读，够用） ---------------- */
 
@@ -271,6 +287,28 @@ static void hf_respond_json(int fd, int code, const char* json)
                json, strlen(json));
 }
 
+static void hf_respond_manifest(int fd, const char *manifest, size_t length)
+{
+    static const char prefix[] = "{\"ok\":true,\"manifest\":";
+    size_t prefix_length = sizeof(prefix) - 1;
+    char *response;
+    if (length > HF_AMR_MANIFEST_MAX) {
+        hf_respond_json(fd, 400, "{\"ok\":false,\"error\":\"AMR manifest is too large\"}");
+        return;
+    }
+    response = malloc(prefix_length + length + 2);
+    if (!response) {
+        hf_respond_json(fd, 500, "{\"ok\":false,\"error\":\"cannot allocate manifest response\"}");
+        return;
+    }
+    memcpy(response, prefix, prefix_length);
+    memcpy(response + prefix_length, manifest, length);
+    response[prefix_length + length] = '}';
+    response[prefix_length + length + 1] = '\0';
+    hf_respond_json(fd, 200, response);
+    free(response);
+}
+
 /* 从头部里取一个字段值（大小写不敏感），找到返回 1 */
 static int hf_get_header(const char* headers, const char* name, char* out, size_t outlen)
 {
@@ -369,8 +407,6 @@ static int hf_launch_amr_install(const char *filepath)
 #define UPDATE_PACKAGE "/tmp/hyperfile-update.amr"
 #define UPDATE_PART "/tmp/hyperfile-update.amr.part"
 #define UPDATE_TOKEN_FILE "/tmp/hyperfile-update.token"
-#define UPDATE_LOG "/tmp/hyperfile-update.log"
-#define UPDATER_PATH "/userdisk/HyperFile/hyperfile-updater"
 
 static int hf_update_token_valid(const char *headers)
 {
@@ -399,48 +435,6 @@ static int hf_write_all(int fd, const char *data, size_t length)
         if (n <= 0) return -1;
         offset += (size_t)n;
     }
-    return 0;
-}
-
-static int hf_launch_updater(void)
-{
-    int pipefd[2];
-    pid_t first;
-    if (pipe(pipefd) != 0) return -1;
-    (void)fcntl(pipefd[1], F_SETFD, FD_CLOEXEC);
-    first = fork();
-    if (first < 0) { close(pipefd[0]); close(pipefd[1]); return -1; }
-    if (first == 0) {
-        close(pipefd[0]);
-        if (setsid() < 0) {
-            int e = errno; (void)write(pipefd[1], &e, sizeof(e)); _exit(126);
-        }
-        pid_t second = fork();
-        if (second < 0) {
-            int e = errno; (void)write(pipefd[1], &e, sizeof(e)); _exit(126);
-        }
-        if (second > 0) _exit(0);
-        int logfd = open(UPDATE_LOG, O_WRONLY | O_CREAT | O_APPEND, 0600);
-        if (logfd >= 0) {
-            (void)dup2(logfd, STDOUT_FILENO);
-            (void)dup2(logfd, STDERR_FILENO);
-            if (logfd > STDERR_FILENO) close(logfd);
-        }
-        execl(UPDATER_PATH, UPDATER_PATH, (char *)NULL);
-        int saved = errno;
-        (void)write(pipefd[1], &saved, sizeof(saved));
-        _exit(127);
-    }
-    close(pipefd[1]);
-    int status = 0;
-    while (waitpid(first, &status, 0) < 0 && errno == EINTR) {}
-    int child_errno = 0;
-    ssize_t n;
-    do { n = read(pipefd[0], &child_errno, sizeof(child_errno)); } while (n < 0 && errno == EINTR);
-    close(pipefd[0]);
-    if (n > 0) { errno = child_errno; return -1; }
-    if (n < 0) return -1;
-    if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) { errno = ECHILD; return -1; }
     return 0;
 }
 
@@ -499,13 +493,55 @@ static void hf_handle_update(int fd, const char *headers, const char *body_prefi
         hf_respond_json(fd, 500, "{\"ok\":false,\"error\":\"cannot finalize update package\"}");
         return;
     }
-    if (hf_launch_updater() != 0) {
+    char *manifest = NULL;
+    size_t manifest_length = 0;
+    if (hf_amr_read_manifest(UPDATE_PACKAGE, &manifest, &manifest_length) != 0) {
         char msg[192];
-        snprintf(msg, sizeof(msg), "{\"ok\":false,\"error\":\"cannot start updater (errno %d)\"}", errno);
-        hf_respond_json(fd, 500, msg);
+        snprintf(msg, sizeof(msg), "{\"ok\":false,\"error\":\"cannot read AMR manifest (errno %d)\"}", errno);
+        unlink(UPDATE_PACKAGE);
+        hf_respond_json(fd, 400, msg);
+        return;
+    }
+    hf_respond_manifest(fd, manifest, manifest_length);
+    free(manifest);
+}
+
+static void hf_handle_update_confirm(int fd, const char *headers)
+{
+    if (access("/tmp/hyperfile-update.lock", F_OK) == 0) {
+        hf_respond_json(fd, 409, "{\"ok\":false,\"error\":\"an update is already running\"}");
+        return;
+    }
+    if (!hf_update_token_valid(headers)) {
+        hf_respond_json(fd, 403, "{\"ok\":false,\"error\":\"invalid update code\"}");
+        return;
+    }
+    if (hf_amr_start_staged_update() != 0) {
+        char msg[192];
+        int status = errno == EBUSY ? 409 : 400;
+        snprintf(msg, sizeof(msg), "{\"ok\":false,\"error\":\"cannot start staged HyperFile update (errno %d)\"}", errno);
+        hf_respond_json(fd, status, msg);
         return;
     }
     hf_respond_json(fd, 200, "{\"ok\":true,\"started\":true}");
+}
+
+static void hf_handle_update_cancel(int fd, const char *headers)
+{
+    if (!hf_update_token_valid(headers)) {
+        hf_respond_json(fd, 403, "{\"ok\":false,\"error\":\"invalid update code\"}");
+        return;
+    }
+    if (access("/tmp/hyperfile-update.lock", F_OK) == 0) {
+        hf_respond_json(fd, 409, "{\"ok\":false,\"error\":\"an update is already running\"}");
+        return;
+    }
+    if ((unlink(UPDATE_PACKAGE) != 0 && errno != ENOENT) ||
+        (unlink(UPDATE_PART) != 0 && errno != ENOENT)) {
+        hf_respond_json(fd, 500, "{\"ok\":false,\"error\":\"cannot remove staged update package\"}");
+        return;
+    }
+    hf_respond_json(fd, 200, "{\"ok\":true,\"cancelled\":true}");
 }
 
 /* ---------------- 连接处理 ---------------- */
@@ -646,14 +682,60 @@ static void hf_handle_conn(int fd)
             hf_respond_json(fd, 200, "{\"ok\":true}");
         else
             hf_respond_json(fd, 400, "{\"ok\":false,\"error\":\"cannot copy item (destination may exist)\"}");
-    } else if (strcmp(method, "POST") == 0 && strncmp(path, "/api/install", 12) == 0) {
+    } else if (strcmp(method, "GET") == 0 && strncmp(path, "/api/package-info", 17) == 0) {
         char rel[512] = "", decoded[512], filepath[PATH_MAX];
+        char *manifest = NULL;
+        size_t manifest_length = 0;
         hf_get_query(path, "path", rel, sizeof(rel));
         hf_url_decode(decoded, sizeof(decoded), rel);
         size_t n = strlen(decoded);
         if (n < 4 || strcasecmp(decoded + n - 4, ".amr") != 0 ||
             hf_fm_resolve_file(g_status.dir, decoded, filepath, sizeof(filepath)) != 0) {
+            hf_respond_json(fd, 400, "{\"ok\":false,\"error\":\"only regular .amr packages can be inspected\"}");
+        } else if (hf_amr_read_manifest(filepath, &manifest, &manifest_length) != 0) {
+            char msg[256];
+            snprintf(msg, sizeof(msg), "{\"ok\":false,\"error\":\"cannot read AMR manifest (errno %d)\"}", errno);
+            hf_respond_json(fd, 400, msg);
+        } else {
+            hf_respond_manifest(fd, manifest, manifest_length);
+            free(manifest);
+        }
+    } else if (strcmp(method, "POST") == 0 && strncmp(path, "/api/install", 12) == 0) {
+        char rel[512] = "", decoded[512], filepath[PATH_MAX];
+        char self_update[8] = "";
+        char *manifest = NULL;
+        size_t manifest_length = 0;
+        int appid_matches = 0;
+        hf_get_query(path, "path", rel, sizeof(rel));
+        hf_get_query(path, "selfUpdate", self_update, sizeof(self_update));
+        hf_url_decode(decoded, sizeof(decoded), rel);
+        size_t n = strlen(decoded);
+        if (n < 4 || strcasecmp(decoded + n - 4, ".amr") != 0 ||
+            hf_fm_resolve_file(g_status.dir, decoded, filepath, sizeof(filepath)) != 0) {
             hf_respond_json(fd, 400, "{\"ok\":false,\"error\":\"only regular .amr packages can be installed\"}");
+        } else if (hf_amr_read_manifest(filepath, &manifest, &manifest_length) == 0) {
+            appid_matches = hf_amr_manifest_appid_matches(
+                manifest, manifest_length, HF_HYPERFILE_APP_ID);
+            free(manifest);
+            if (strcmp(self_update, "1") == 0 && !appid_matches) {
+                hf_respond_json(fd, 400, "{\"ok\":false,\"error\":\"AMR App ID does not match HyperFile\"}");
+            } else if (appid_matches || strcmp(self_update, "1") == 0) {
+                if (hf_amr_start_update_from_path(filepath) != 0) {
+                    char msg[256];
+                    snprintf(msg, sizeof(msg), "{\"ok\":false,\"error\":\"cannot start HyperFile self-update (errno %d)\"}", errno);
+                    hf_respond_json(fd, errno == EBUSY ? 409 : 400, msg);
+                } else {
+                    hf_respond_json(fd, 200, "{\"ok\":true,\"started\":true,\"updating\":true}");
+                }
+            } else if (hf_launch_amr_install(filepath) != 0) {
+                char msg[256];
+                snprintf(msg, sizeof(msg), "{\"ok\":false,\"error\":\"cannot execute miniapp_cli (errno %d)\"}", errno);
+                hf_respond_json(fd, 500, msg);
+            } else {
+                hf_respond_json(fd, 200, "{\"ok\":true,\"started\":true,\"updating\":false}");
+            }
+        } else if (strcmp(self_update, "1") == 0) {
+            hf_respond_json(fd, 400, "{\"ok\":false,\"error\":\"cannot verify HyperFile App ID\"}");
         } else if (hf_launch_amr_install(filepath) != 0) {
             char msg[256];
             snprintf(msg, sizeof(msg), "{\"ok\":false,\"error\":\"cannot execute miniapp_cli (errno %d)\"}", errno);
@@ -673,6 +755,10 @@ static void hf_handle_conn(int fd)
         hf_respond_json(fd, 200, json);
     } else if (strcmp(method, "PUT") == 0 && strcmp(path, "/api/update") == 0) {
         hf_handle_update(fd, headers, body_prefix, prefix_len, content_len);
+    } else if (strcmp(method, "POST") == 0 && strcmp(path, "/api/update/confirm") == 0) {
+        hf_handle_update_confirm(fd, headers);
+    } else if (strcmp(method, "DELETE") == 0 && strcmp(path, "/api/update/preview") == 0) {
+        hf_handle_update_cancel(fd, headers);
     } else if ((strcmp(method, "PUT") == 0 || strcmp(method, "POST") == 0) &&
                strncmp(path, "/upload", 7) == 0) {
         hf_handle_upload(fd, path, headers, body_prefix, prefix_len, content_len);

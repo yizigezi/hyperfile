@@ -85,7 +85,8 @@ fi
 if [ "${1:-}" = "--test" ]; then
   echo "== 本地测试版 hf-server（x86） =="
   mkdir -p "$OUT_DIR"
-  cc -O2 -g -I "$INC" "$ROOT/native/http_server.c" "$ROOT/native/test_main.c" \
+  cc -O2 -g -I "$INC" "$ROOT/native/http_server.c" "$ROOT/native/file_manager.c" \
+    "$ROOT/native/amr_info.c" "$ROOT/native/amr_update.c" "$ROOT/native/test_main.c" \
     -lpthread -o "$ROOT/native/dist/hf-server"
   echo "产出: $ROOT/native/dist/hf-server <port> <upload_dir>"
   exit 0
