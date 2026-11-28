@@ -72,9 +72,13 @@ export default {
     return {
       books: [],
       loading: false,
+      refreshPromise: null,
       removeTarget: null,
       toast: ''
     }
+  },
+  onLoad() {
+    this.refresh()
   },
   onShow() {
     this.refresh()
@@ -86,17 +90,26 @@ export default {
     openBookSettings(book) {
       $falcon.navTo('shelf-settings', { bookId: book.id })
     },
-    async refresh() {
-      await loadReaderSettings()
+    refresh() {
+      if (this.refreshPromise) return this.refreshPromise
       this.loading = true
-      try {
-        this.books = await listBooks()
-      } catch (e) {
-        this.books = []
-        this.showToast('书架读取失败：' + (e && e.message ? e.message : e))
-      } finally {
-        this.loading = false
-      }
+      const task = (async () => {
+        try {
+          await loadReaderSettings()
+          this.books = await listBooks()
+        } catch (e) {
+          this.books = []
+          this.showToast('书架读取失败：' + (e && e.message ? e.message : e))
+        } finally {
+          this.loading = false
+        }
+      })()
+      this.refreshPromise = task
+      task.then(
+        () => { if (this.refreshPromise === task) this.refreshPromise = null },
+        () => { if (this.refreshPromise === task) this.refreshPromise = null }
+      )
+      return task
     },
     percentOf(book) {
       if (!book.pageCount) return 0
