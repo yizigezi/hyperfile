@@ -88,26 +88,29 @@ export default {
       toast: ''
     }
   },
-  onLoad() {
-    this.load()
-  },
-  onShow() {
+  // 首次读取由 Vue 创建钩子直接启动，不依赖 Falcon Page 生命周期桥接。
+  created() {
+    console.log('[HyperFile][shelf-settings] created: start load')
     this.load()
   },
   methods: {
     load() {
       if (this.loadPromise) return this.loadPromise
+      console.log('[HyperFile][shelf-settings] load: begin')
       this.loading = true
       const task = (async () => {
         try {
           await loadReaderSettings()
+          console.log('[HyperFile][shelf-settings] reader settings loaded')
           this.draftSettings = getReaderSettings()
           const options = this.$page && this.$page.options ? this.$page.options : {}
           const bookId = options.bookId || ''
           this.isDefault = !bookId
           this.book = null
           if (bookId) {
+            console.log('[HyperFile][shelf-settings] loading book:', bookId)
             const books = await listBooks()
+            console.log('[HyperFile][shelf-settings] bookshelf loaded:', books.length)
             this.book = books.find(item => item.id === bookId) || null
             if (this.book) {
               this.draftSettings = { fontSize: this.book.fontSize, lineHeight: this.book.lineHeight }
@@ -117,9 +120,11 @@ export default {
             }
           }
         } catch (e) {
+          console.log('[HyperFile][shelf-settings] load: failed', e)
           this.showToast('设置读取失败：' + (e && e.message ? e.message : e))
         } finally {
           this.loading = false
+          console.log('[HyperFile][shelf-settings] load: finished')
         }
       })()
       this.loadPromise = task
