@@ -3,6 +3,7 @@
  *
  * 目录布局（/userdisk/HyperFile_Data/bookshelf/）：
  *   shelf.json        书籍清单（含元数据、章节目录、阅读进度）
+ *   <id>/original.txt 加入书架时保存的原件
  *   <id>/chunk-0.json 每 10 页一个分页缓存 {start, pages: [...]}
  *   <id>/chunk-1.json …
  *
@@ -28,6 +29,10 @@ function sanitizeId(name) {
 
 function chunkFile(id, index) {
   return SHELF_DIR + '/' + id + '/chunk-' + index + '.json'
+}
+
+function originalFile(id) {
+  return SHELF_DIR + '/' + id + '/original.txt'
 }
 
 export function chunkIndexOf(page) {
@@ -131,7 +136,7 @@ export async function updateBookSettings(id, settings) {
   const book = await getBook(id)
   if (!book) throw new Error('书籍不存在')
   const ratio = book.pageCount > 1 ? (book.progress || 0) / (book.pageCount - 1) : 0
-  const entry = await addBook(book.path, book.name, settings)
+  const entry = await addBook(book.path, book.name, settings, book.sourcePath || book.path)
   entry.progress = Math.round(ratio * Math.max(0, entry.pageCount - 1))
   await updateProgress(entry.id, entry.progress)
   return entry
@@ -141,7 +146,7 @@ export async function updateBookSettings(id, settings) {
  * 加入（或按新设置重加）书架：分页 + 章节识别 + 分块落盘。
  * 同一路径的旧条目会被替换（重复加入 = 按当前设置重新分页）。
  */
-export async function addBook(filePath, name, settings) {
+export async function addBook(filePath, name, settings, sourcePath) {
   const text = await fs.readFile(filePath)
   const content = typeof text === 'string' ? text : (text ? String(text) : '')
   if (!content) throw new Error('文件为空')
@@ -153,19 +158,30 @@ export async function addBook(filePath, name, settings) {
 
   await fs.mkdir(SHELF_DIR)
   const id = sanitizeId(name)
-  await fs.mkdir(SHELF_DIR + '/' + id)
-  for (let start = 0; start < result.pages.length; start += CHUNK_PAGES) {
-    const chunk = {
-      start: start,
-      pages: result.pages.slice(start, start + CHUNK_PAGES)
+  const bookDir = SHELF_DIR + '/' + id
+  await fs.mkdir(bookDir)
+  try {
+    await fs.writeFile(originalFile(id), text)
+    for (let start = 0; start < result.pages.length; start += CHUNK_PAGES) {
+      const chunk = {
+        start: start,
+        pages: result.pages.slice(start, start + CHUNK_PAGES)
+      }
+      await fs.writeFile(chunkFile(id, chunk.start / CHUNK_PAGES), JSON.stringify(chunk))
     }
-    await fs.writeFile(chunkFile(id, chunk.start / CHUNK_PAGES), JSON.stringify(chunk))
+  } catch (e) {
+    try {
+      await fs.rm(bookDir)
+    } catch (cleanupError) {}
+    throw e
   }
 
+  const originalPath = originalFile(id)
   const entry = {
     id: id,
     name: String(name || filePath.split('/').pop() || '未命名'),
-    path: filePath,
+    path: originalPath,
+    sourcePath: sourcePath || filePath,
     fontSize: settings.fontSize,
     lineHeight: settings.lineHeight,
     pageCount: result.pages.length,
@@ -179,15 +195,26 @@ export async function addBook(filePath, name, settings) {
 
   const list = await loadShelf()
   const next = [entry]
+  const replacedIds = []
   for (let i = 0; i < list.length; i++) {
-    if (list[i].path === filePath) {
-      try {
-        await fs.rm(SHELF_DIR + '/' + list[i].id)
-      } catch (e) {}
-      continue
+    if ((list[i].sourcePath || list[i].path) === entry.sourcePath) {
+      replacedIds.push(list[i].id)
+    } else {
+      next.push(list[i])
     }
-    next.push(list[i])
   }
-  await saveShelf(next)
+  try {
+    await saveShelf(next)
+  } catch (e) {
+    try {
+      await fs.rm(bookDir)
+    } catch (cleanupError) {}
+    throw e
+  }
+  for (let i = 0; i < replacedIds.length; i++) {
+    try {
+      await fs.rm(SHELF_DIR + '/' + replacedIds[i])
+    } catch (e) {}
+  }
   return entry
 }

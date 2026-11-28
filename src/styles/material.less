@@ -1073,15 +1073,25 @@
 
 /* ---------- 书架与文件操作补充 ---------- */
 
-.shelf-remove {
-  height: 26px;
-  min-width: 84px;
-  padding: 0 10px;
+.shelf-card-actions {
+  width: 100%;
+  height: 28px;
   margin-top: 6px;
+}
+
+.shelf-card-action {
+  height: 26px;
+  flex: 1;
+  margin-right: 6px;
   border-radius: 13px;
   align-items: center;
   justify-content: center;
   background-color: @surface-container-highest;
+}
+
+.shelf-card-action-delete {
+  margin-right: 0;
+  background-color: #3b2020;
 }
 
 .shelf-remove-text {
@@ -1102,29 +1112,77 @@
 
 
 
-/* 书架设置与分页等待状态 */
-.shelf-settings-card {
-  width: 480px;
-  padding: 20px;
+/* 书架独立设置页 */
+.shelf-settings-shelf {
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+  margin-top: 10px;
+  padding: 0 16px;
+  flex-direction: row;
 }
 
-.shelf-rename-row {
+.shelf-setting-card {
+  width: 256px;
+  height: 176px;
+  flex-shrink: 0;
+  margin-right: 12px;
+  padding: 12px;
+  border-radius: 24px;
+  background-color: @surface-container;
+  flex-direction: column;
+}
+
+.shelf-book-info-card {
+  width: 240px;
+}
+
+.shelf-setting-row {
   width: 100%;
-  margin-top: 8px;
+  height: 48px;
   flex-direction: row;
   align-items: center;
+  justify-content: space-between;
 }
 
+.shelf-stepper-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 18px;
+}
 
-.shelf-remove-settings {
+.shelf-stepper-value {
+  width: 54px;
+  font-size: 15px;
+}
+
+.shelf-setting-save {
   height: 34px;
-  margin-top: 10px;
+  margin-top: 2px;
+  padding: 0 12px;
   border-radius: 17px;
   align-items: center;
   justify-content: center;
-  background-color: @surface-container-highest;
+  background-color: @primary;
 }
 
+.shelf-setting-save-label {
+  color: @on-primary;
+  font-size: 13px;
+  font-weight: bold;
+}
+
+.shelf-book-info {
+  color: @on-surface-variant;
+  font-size: 13px;
+  margin-top: 8px;
+  margin-bottom: 8px;
+}
+
+.shelf-rename-input {
+  height: 38px;
+  flex-shrink: 0;
+}
 
 .shelf-loading-mask {
   z-index: 50;
@@ -1148,15 +1206,4 @@
   color: @on-surface-variant;
   font-size: 12px;
   font-weight: bold;
-}
-
-.shelf-rename-input {
-  flex: 1;
-  min-width: 0;
-  width: 0;
-}
-
-.shelf-rename-button {
-  min-width: 84px;
-  margin-left: 8px;
 }

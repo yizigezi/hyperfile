@@ -585,7 +585,7 @@ export default {
         await new Promise(resolve => this.$page.setTimeout(resolve, 16))
         await loadReaderSettings()
         const book = await addBook(entry.path, entry.name, getReaderSettings())
-        this.showToast('已加入书架：共 ' + book.pageCount + ' 页')
+        this.showToast('已加入书架并保存原件：共 ' + book.pageCount + ' 页')
       } catch (e) {
         this.showToast('加入书架失败：' + (e && e.message ? e.message : e))
       } finally {

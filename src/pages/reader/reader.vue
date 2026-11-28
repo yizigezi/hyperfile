@@ -382,7 +382,7 @@ export default {
       try {
         await new Promise(resolve => this.$page.setTimeout(resolve, 16))
         const ratio = book.pageCount > 1 ? this.currentPage / (book.pageCount - 1) : 0
-        const entry = await addBook(book.path, book.name, this.settings)
+        const entry = await addBook(book.path, book.name, this.settings, book.sourcePath || book.path)
         entry.progress = Math.round(ratio * Math.max(0, entry.pageCount - 1))
         await updateProgress(entry.id, entry.progress)
         await this.openBook(entry)
