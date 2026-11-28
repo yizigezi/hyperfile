@@ -80,8 +80,13 @@ export default {
   onLoad() {
     this.refresh()
   },
-  onShow() {
+  // 首次数据加载放在 Vue 创建阶段，避免依赖 Page 生命周期转发。
+  created() {
+    console.log('[HyperFile][shelf] created: start refresh')
     this.refresh()
+  },
+  onShow() {
+    if (!this.refreshPromise) this.refresh()
   },
   methods: {
     openDefaultSettings() {
@@ -92,12 +97,15 @@ export default {
     },
     refresh() {
       if (this.refreshPromise) return this.refreshPromise
+      console.log('[HyperFile][shelf] refresh: begin')
       this.loading = true
       const task = (async () => {
         try {
           await loadReaderSettings()
           this.books = await listBooks()
+          console.log('[HyperFile][shelf] refresh: complete, books=', this.books.length)
         } catch (e) {
+          console.log('[HyperFile][shelf] refresh: failed', e)
           this.books = []
           this.showToast('书架读取失败：' + (e && e.message ? e.message : e))
         } finally {
