@@ -268,9 +268,7 @@
             <text class="dialog-button-label">取消</text>
           </div>
           <div class="dialog-button dialog-button-primary" @click="InstallLocalAmr">
-            <text class="dialog-button-label dialog-button-primary-label">
-              {{ installInfoLoading ? '读取中…' : (isPendingSelfUpdate ? '更新' : '安装') }}
-            </text>
+            <text class="dialog-button-label dialog-button-primary-label">{{ installInfoLoading ? '读取中…' : (isPendingSelfUpdate ? '更新' : '安装') }}</text>
           </div>
         </div>
       </div>

@@ -334,8 +334,9 @@ static int inflate_with_gunzip(FILE *gzip_file, unsigned char *output,
     close(output_pipe[0]);
     pid_t waited;
     do { waited = waitpid(child, &status, 0); } while (waited < 0 && errno == EINTR);
-    if (waited < 0) return -1;
-    if (!WIFEXITED(status) || WEXITSTATUS(status) != 0 || used != expected_size) {
+    if (waited < 0 && errno != ECHILD) return -1;
+    if ((waited > 0 && (!WIFEXITED(status) || WEXITSTATUS(status) != 0)) ||
+        used != expected_size) {
         errno = EBADMSG;
         return -1;
     }
@@ -400,7 +401,10 @@ int hf_amr_read_manifest(const char *path, char **manifest, size_t *length)
         uint32_t remaining = compressed_size;
         uint64_t offset = data_offset;
         size_t inflated_size = 0;
-        if (!gzip_file) goto fail;
+        if (!gzip_file) {
+            saved = errno;
+            goto fail;
+        }
         write_u32(trailer, expected_crc);
         write_u32(trailer + 4, uncompressed_size);
         if (write_all(fileno(gzip_file), gzip_header, sizeof(gzip_header)) != 0) {
