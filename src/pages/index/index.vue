@@ -457,11 +457,13 @@ export default {
       scriptRunning: false
     }
   },
-  onLoad() {
+  // Vue 创建阶段直接启动首次加载，不依赖 Falcon Page -> $root 钩子转发。
+  created() {
+    console.log('[HyperFile][index] created: start initial load')
     this.initializePage()
   },
   onShow() {
-    this.initializePage()
+    if (!this.initialLoadPromise) this.initializePage()
   },
   computed: {
     isPendingSelfUpdate() {
@@ -472,12 +474,15 @@ export default {
   methods: {
     initializePage() {
       if (this.initialLoadPromise) return this.initialLoadPromise
+      console.log('[HyperFile][index] initializePage: begin')
       const task = (async () => {
         if (!this.lastPathRestored) {
           await this.restoreLastPath()
           this.lastPathRestored = true
         }
+        console.log('[HyperFile][index] restored path:', this.currentPath)
         await Promise.all([this.refreshLocal(), this.refreshShare()])
+        console.log('[HyperFile][index] initializePage: complete')
       })()
       this.initialLoadPromise = task
       task.then(
@@ -524,6 +529,7 @@ export default {
       }
     },
     async refreshLocal() {
+      console.log('[HyperFile][index] refreshLocal: begin', this.currentPath)
       this.localLoading = true
       this.localError = ''
       try {
@@ -553,7 +559,9 @@ export default {
           return a.name.localeCompare(b.name)
         })
         this.entries = result
+        console.log('[HyperFile][index] refreshLocal: complete, entries=', result.length)
       } catch (e) {
+        console.log('[HyperFile][index] refreshLocal: failed', e)
         this.entries = []
         this.localError = e && e.message ? e.message : String(e)
       } finally {
