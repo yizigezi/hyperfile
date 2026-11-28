@@ -80,6 +80,7 @@ export default {
       book: null,
       isDefault: true,
       loading: true,
+      loadPromise: null,
       draftSettings: { fontSize: 17, lineHeight: 1.55 },
       renameValue: '',
       repaginateConfirm: false,
@@ -87,33 +88,46 @@ export default {
       toast: ''
     }
   },
+  onLoad() {
+    this.load()
+  },
   onShow() {
     this.load()
   },
   methods: {
-    async load() {
+    load() {
+      if (this.loadPromise) return this.loadPromise
       this.loading = true
-      await loadReaderSettings()
-      this.draftSettings = getReaderSettings()
-      const options = this.$page && this.$page.options ? this.$page.options : {}
-      const bookId = options.bookId || ''
-      this.isDefault = !bookId
-      this.book = null
-      if (bookId) {
+      const task = (async () => {
         try {
-          const books = await listBooks()
-          this.book = books.find(item => item.id === bookId) || null
-          if (this.book) {
-            this.draftSettings = { fontSize: this.book.fontSize, lineHeight: this.book.lineHeight }
-            this.renameValue = this.book.name
-          } else {
-            this.showToast('书籍不存在或已删除')
+          await loadReaderSettings()
+          this.draftSettings = getReaderSettings()
+          const options = this.$page && this.$page.options ? this.$page.options : {}
+          const bookId = options.bookId || ''
+          this.isDefault = !bookId
+          this.book = null
+          if (bookId) {
+            const books = await listBooks()
+            this.book = books.find(item => item.id === bookId) || null
+            if (this.book) {
+              this.draftSettings = { fontSize: this.book.fontSize, lineHeight: this.book.lineHeight }
+              this.renameValue = this.book.name
+            } else {
+              this.showToast('书籍不存在或已删除')
+            }
           }
         } catch (e) {
-          this.showToast('书籍读取失败：' + (e && e.message ? e.message : e))
+          this.showToast('设置读取失败：' + (e && e.message ? e.message : e))
+        } finally {
+          this.loading = false
         }
-      }
-      this.loading = false
+      })()
+      this.loadPromise = task
+      task.then(
+        () => { if (this.loadPromise === task) this.loadPromise = null },
+        () => { if (this.loadPromise === task) this.loadPromise = null }
+      )
+      return task
     },
     changeFont(delta) {
       const value = this.draftSettings.fontSize + delta
