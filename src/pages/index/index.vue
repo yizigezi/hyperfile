@@ -420,6 +420,7 @@ export default {
       page: 'local',
       currentPath: '/',
       lastPathRestored: false,
+      initialLoadPromise: null,
       entries: [],
       localLoading: false,
       localError: '',
@@ -456,13 +457,11 @@ export default {
       scriptRunning: false
     }
   },
-  async onShow() {
-    if (!this.lastPathRestored) {
-      await this.restoreLastPath()
-      this.lastPathRestored = true
-    }
-    this.refreshLocal()
-    this.refreshShare()
+  onLoad() {
+    this.initializePage()
+  },
+  onShow() {
+    this.initializePage()
   },
   computed: {
     isPendingSelfUpdate() {
@@ -471,6 +470,25 @@ export default {
     }
   },
   methods: {
+    initializePage() {
+      if (this.initialLoadPromise) return this.initialLoadPromise
+      const task = (async () => {
+        if (!this.lastPathRestored) {
+          await this.restoreLastPath()
+          this.lastPathRestored = true
+        }
+        await Promise.all([this.refreshLocal(), this.refreshShare()])
+      })()
+      this.initialLoadPromise = task
+      task.then(
+        () => { if (this.initialLoadPromise === task) this.initialLoadPromise = null },
+        (error) => {
+          console.log('[HyperFile] 页面初始加载失败:', error)
+          if (this.initialLoadPromise === task) this.initialLoadPromise = null
+        }
+      )
+      return task
+    },
     switchPage(next) {
       this.page = next
       if (next === 'local') this.refreshLocal()
