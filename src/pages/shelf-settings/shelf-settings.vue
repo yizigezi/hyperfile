@@ -72,6 +72,7 @@
 <script>
 import { listBooks, updateBookSettings, renameBook } from '../../utils/Bookshelf.js'
 import { getReaderSettings, setReaderSettings, loadReaderSettings } from '../../utils/ReaderSession.js'
+import { withTimeout } from '../../utils/async.js'
 
 export default {
   name: 'shelf-settings',
@@ -80,6 +81,7 @@ export default {
       book: null,
       isDefault: true,
       loading: true,
+      loaded: false,
       loadPromise: null,
       draftSettings: { fontSize: 17, lineHeight: 1.55 },
       renameValue: '',
@@ -88,49 +90,60 @@ export default {
       toast: ''
     }
   },
-  // 首次读取由 Vue 创建钩子直接启动，不依赖 Falcon Page 生命周期桥接。
+  // 首次读取由 Vue created 触发（必火）；页面钩子双保险：
+  // methods 同名项供 BasePage._callRootHook 转发，顶层同名项供运行时 $options 直调。
   created() {
     console.log('[HyperFile][shelf-settings] created: start load')
     this.load()
   },
+  onShow() { if (this && this.load && !this.loaded) this.load() },
+  onNewOptions() { if (this && this.load) this.load(true) },
   methods: {
-    load() {
-      if (this.loadPromise) return this.loadPromise
+    onShow() {
+      if (!this.loaded) this.load()
+    },
+    onNewOptions() {
+      this.load(true)
+    },
+    load(force) {
+      if (this.loadPromise && !force) return this.loadPromise
       console.log('[HyperFile][shelf-settings] load: begin')
       this.loading = true
-      const task = (async () => {
-        try {
-          await loadReaderSettings()
-          console.log('[HyperFile][shelf-settings] reader settings loaded')
-          this.draftSettings = getReaderSettings()
-          const options = this.$page && this.$page.options ? this.$page.options : {}
-          const bookId = options.bookId || ''
-          this.isDefault = !bookId
-          this.book = null
-          if (bookId) {
-            console.log('[HyperFile][shelf-settings] loading book:', bookId)
-            const books = await listBooks()
-            console.log('[HyperFile][shelf-settings] bookshelf loaded:', books.length)
-            this.book = books.find(item => item.id === bookId) || null
-            if (this.book) {
-              this.draftSettings = { fontSize: this.book.fontSize, lineHeight: this.book.lineHeight }
-              this.renameValue = this.book.name
-            } else {
-              this.showToast('书籍不存在或已删除')
-            }
+      const task = withTimeout((async () => {
+        await loadReaderSettings()
+        console.log('[HyperFile][shelf-settings] reader settings loaded')
+        this.draftSettings = getReaderSettings()
+        const options = this.$page && this.$page.options ? this.$page.options : {}
+        const bookId = options.bookId || ''
+        this.isDefault = !bookId
+        this.book = null
+        if (bookId) {
+          console.log('[HyperFile][shelf-settings] loading book:', bookId)
+          const books = await listBooks()
+          console.log('[HyperFile][shelf-settings] bookshelf loaded:', books.length)
+          this.book = books.find(item => item.id === bookId) || null
+          if (this.book) {
+            this.draftSettings = { fontSize: this.book.fontSize, lineHeight: this.book.lineHeight }
+            this.renameValue = this.book.name
+          } else {
+            this.showToast('书籍不存在或已删除')
           }
-        } catch (e) {
-          console.log('[HyperFile][shelf-settings] load: failed', e)
-          this.showToast('设置读取失败：' + (e && e.message ? e.message : e))
-        } finally {
-          this.loading = false
-          console.log('[HyperFile][shelf-settings] load: finished')
         }
-      })()
+      })(), 15000, '设置读取')
       this.loadPromise = task
       task.then(
-        () => { if (this.loadPromise === task) this.loadPromise = null },
-        () => { if (this.loadPromise === task) this.loadPromise = null }
+        () => {
+          this.loading = false
+          this.loaded = true
+          console.log('[HyperFile][shelf-settings] load: finished')
+          if (this.loadPromise === task) this.loadPromise = null
+        },
+        (e) => {
+          console.log('[HyperFile][shelf-settings] load: failed', e)
+          this.loading = false
+          this.showToast('设置读取失败：' + (e && e.message ? e.message : e))
+          if (this.loadPromise === task) this.loadPromise = null
+        }
       )
       return task
     },

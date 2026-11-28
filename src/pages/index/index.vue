@@ -344,6 +344,7 @@
 <script>
 import FlQrcode from 'falcon-ui/src/packages/qr-code/index.vue'
 import { fs, execShell } from '../../utils/FileSystem/FileSystem.js'
+import { withTimeout } from '../../utils/async.js'
 import { setReaderTarget, getReaderSettings, loadReaderSettings } from '../../utils/ReaderSession.js'
 import { addBook } from '../../utils/Bookshelf.js'
 const HYPERFILE_APP_ID = '8026111800000002'
@@ -457,14 +458,14 @@ export default {
       scriptRunning: false
     }
   },
-  // Vue 创建阶段直接启动首次加载，不依赖 Falcon Page -> $root 钩子转发。
+  // 首次加载由 Vue created 触发（必火）；页面钩子双保险：
+  // methods 同名项供 BasePage._callRootHook 转发，顶层同名项供运行时 $options 直调。
   created() {
     console.log('[HyperFile][index] created: start initial load')
     this.initializePage()
   },
-  onShow() {
-    if (!this.initialLoadPromise) this.initializePage()
-  },
+  onShow() { if (this && this.initializePage) this.initializePage() },
+  onHide() { if (this && this.lastPathRestored) this.saveLastPath() },
   computed: {
     isPendingSelfUpdate() {
       return !!this.pendingInstallInfo &&
@@ -472,10 +473,16 @@ export default {
     }
   },
   methods: {
+    onShow() {
+      this.initializePage()
+    },
+    onHide() {
+      if (this.lastPathRestored) this.saveLastPath()
+    },
     initializePage() {
       if (this.initialLoadPromise) return this.initialLoadPromise
       console.log('[HyperFile][index] initializePage: begin')
-      const task = (async () => {
+      const task = withTimeout((async () => {
         if (!this.lastPathRestored) {
           await this.restoreLastPath()
           this.lastPathRestored = true
@@ -483,7 +490,7 @@ export default {
         console.log('[HyperFile][index] restored path:', this.currentPath)
         await Promise.all([this.refreshLocal(), this.refreshShare()])
         console.log('[HyperFile][index] initializePage: complete')
-      })()
+      })(), 20000, '页面数据加载')
       this.initialLoadPromise = task
       task.then(
         () => { if (this.initialLoadPromise === task) this.initialLoadPromise = null },

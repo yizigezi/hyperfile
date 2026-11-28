@@ -10,11 +10,14 @@
  * 加入书架时即按当前字号/行距完成分页与章节识别，阅读时按需读 chunk，
  * 打开书籍只需读 shelf.json + 一个 chunk，最大限度降低加载时间。
  */
-import { fs } from './FileSystem/FileSystem.js'
+import { fs, execShell } from './FileSystem/FileSystem.js'
 import { buildPages, buildPagesNative } from './JsPagination.js'
 
 const SHELF_DIR = '/userdisk/HyperFile_Data/bookshelf'
 const SHELF_FILE = SHELF_DIR + '/shelf.json'
+// 旧版书架位置（master 及更早）；首次读取时一次性迁移。
+const LEGACY_SHELF_DIR = '/userdisk/HyperFile/bookshelf'
+let migrationChecked = false
 export const CHUNK_PAGES = 10
 
 // 与阅读页几何一致（800×254 横屏：文本区 624×230）
@@ -46,7 +49,29 @@ export function paginationOptions(settings) {
   }
 }
 
+function shellQuote(value) {
+  return "'" + String(value).replace(/'/g, "'\\''") + "'"
+}
+
+async function migrateLegacyShelf() {
+  if (migrationChecked) return
+  migrationChecked = true
+  try {
+    if (await fs.exists(SHELF_FILE)) return
+    if (!(await fs.exists(LEGACY_SHELF_DIR + '/shelf.json'))) return
+    await execShell(
+      'mkdir -p ' + shellQuote(SHELF_DIR) +
+      ' && cp -a ' + shellQuote(LEGACY_SHELF_DIR) + '/. ' + shellQuote(SHELF_DIR) + '/'
+    )
+    console.log('[Bookshelf] 已从旧目录迁移书架数据')
+  } catch (e) {
+    // 迁移失败不影响后续流程（相当于全新书架）
+    console.log('[Bookshelf] 旧书架迁移失败:', e)
+  }
+}
+
 async function loadShelf() {
+  await migrateLegacyShelf()
   try {
     if (!(await fs.exists(SHELF_FILE))) return []
     const text = await fs.readFile(SHELF_FILE)
