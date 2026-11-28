@@ -3,6 +3,8 @@
     "index": "pages/index/index.vue",
     "reader": "pages/reader/reader.vue",
     "shelf": "pages/shelf/shelf.vue",
-    "shelf-settings": "pages/shelf-settings/shelf-settings.vue"
+    "shelf-settings": "pages/shelf-settings/shelf-settings.vue",
+    "about": "pages/about/about.vue",
+    "apps": "pages/apps/apps.vue"
   }
 }

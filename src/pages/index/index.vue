@@ -12,8 +12,8 @@
         <div :class="page === 'settings' ? 'nav-item nav-item-active' : 'nav-item'" @click="switchPage('settings')">
           <text :class="page === 'settings' ? 'nav-label nav-label-active' : 'nav-label'">设置</text>
         </div>
-        <div class="nav-item" @click="OpenShelf">
-          <text class="nav-label">书架</text>
+        <div class="nav-item" @click="OpenApps">
+          <text class="nav-label">应用</text>
         </div>
       </div>
       <text class="path-label" v-if="page === 'local'">{{ currentPath }}</text>
@@ -145,14 +145,15 @@
             </div>
           </scroller>
         </div>
-        <div class="settings-card settings-card-about">
-          <scroller class="card-scroll" scroll-y="true" show-scrollbar="false">
-            <text class="section-heading">关于 HyperFile</text>
-            <text class="settings-about-title">HyperFile</text>
-            <text class="setting-description">词典笔本地文件与网络共享管理</text>
-            <text class="settings-version">版本 0.1.0</text>
-            <text class="settings-note">当前支持目录浏览、文本阅读、AMR 安装与 Wi-Fi 文件共享。</text>
-          </scroller>
+        <div class="settings-card settings-card-about" @click="OpenAbout">
+          <div class="about-entry">
+            <image class="about-entry-icon" src="/assets/icons/info.png" />
+            <div class="about-entry-text">
+              <text class="about-entry-title">关于 HyperFile</text>
+              <text class="about-entry-version">版本 {{ appVersion }}</text>
+            </div>
+            <text class="setting-chevron">查看</text>
+          </div>
         </div>
       </scroller>
     </div>
@@ -347,6 +348,7 @@ import { fs, execShell } from '../../utils/FileSystem/FileSystem.js'
 import { withTimeout } from '../../utils/async.js'
 import { setReaderTarget, getReaderSettings, loadReaderSettings } from '../../utils/ReaderSession.js'
 import { addBook } from '../../utils/Bookshelf.js'
+import BuildInfo from '../../utils/BuildInfo.js'
 const HYPERFILE_APP_ID = '8026111800000002'
 const UPLOAD_DIR = '/userdisk/Favorite/HyperFile'
 const DATA_DIR = '/userdisk/HyperFile_Data'
@@ -433,6 +435,7 @@ export default {
       received: 0,
       files: [],
       toast: '',
+      appVersion: BuildInfo.version || '0.1.0',
       paginationLoading: false,
       showSetupConfirm: false,
       showDiagnostics: false,
@@ -466,6 +469,7 @@ export default {
   },
   onShow() { if (this && this.initializePage) this.initializePage() },
   onHide() { if (this && this.lastPathRestored) this.saveLastPath() },
+  onNewOptions() { if (this && this.applyPageOptions) this.applyPageOptions() },
   computed: {
     isPendingSelfUpdate() {
       return !!this.pendingInstallInfo &&
@@ -479,10 +483,20 @@ export default {
     onHide() {
       if (this.lastPathRestored) this.saveLastPath()
     },
+    onNewOptions() {
+      this.applyPageOptions()
+    },
+    applyPageOptions() {
+      const options = this.$page && this.$page.options ? this.$page.options : {}
+      if (options.tab === 'local' || options.tab === 'share' || options.tab === 'settings') {
+        this.switchPage(options.tab)
+      }
+    },
     initializePage() {
       if (this.initialLoadPromise) return this.initialLoadPromise
       console.log('[HyperFile][index] initializePage: begin')
       const task = withTimeout((async () => {
+        this.applyPageOptions()
         if (!this.lastPathRestored) {
           await this.restoreLastPath()
           this.lastPathRestored = true
@@ -603,8 +617,11 @@ export default {
       setReaderTarget(entry.path, entry.name, null)
       $falcon.navTo('reader', { path: entry.path, name: entry.name })
     },
-    OpenShelf() {
-      $falcon.navTo('shelf')
+    OpenApps() {
+      $falcon.navTo('apps')
+    },
+    OpenAbout() {
+      $falcon.navTo('about')
     },
     shellQuote(value) {
       return "'" + String(value).replace(/'/g, "'\\''") + "'"
